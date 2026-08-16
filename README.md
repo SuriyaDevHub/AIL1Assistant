@@ -39,35 +39,32 @@ is a config change, not a code change; see
 
 ## Quickstart
 
-### Python backend, no Docker
+Full walkthroughs: [docs/setup.md](docs/setup.md) (install/verify),
+[docs/running-locally.md](docs/running-locally.md) (day-to-day dev
+workflow, tokens, troubleshooting), [docs/log-format.md](docs/log-format.md)
+(what a Genie Bot execution log needs to contain). Short version:
 
 ```bash
 python -m venv .venv
 source .venv/Scripts/activate   # .venv/bin/activate on macOS/Linux
 pip install -e ".[dev]"
-pytest                          # 119 tests across doc section 9's categories
+pytest                          # 186 tests across doc section 9's categories
+
+python scripts/seed_and_run_worker.py   # seeds the KB, serves the API, runs the worker - all in one process
 ```
 
-Everything defaults to the mock/local backends above, so this runs with a
-SQLite file and no other services. To run the API:
+Everything defaults to the mock/local backends above, so this runs with
+a SQLite file and no other services. Run it as one combined process
+(above), not `uvicorn` + `python -m geniebot.worker_main` separately -
+`VECTOR_STORE_BACKEND=memory`'s knowledge-base index is a process-wide
+singleton, so two local processes would each get their own empty index
+(see `docs/running-locally.md`).
 
-```bash
-uvicorn geniebot.main:app --reload
-```
-
-`GET /health` should return `{"status": "ok", ...}`. To exercise the full
-pipeline, seed a sample knowledge base and drop a failing log into the
-local fake-S3 directory:
-
-```bash
-python scripts/seed_kb_sample_corpus.py
-python -m geniebot.worker_main     # in another terminal - ingestion + processing loop
-```
-
-then write a file under `./local_s3/working/<bot_id>/<job_run_id>/execution.log`
-containing a recognisable exception (see `ingestion/incident_factory.py`
-for the log-header/key convention) and watch it become an incident via
-`GET /incidents`.
+`GET /health` should return `{"status": "ok", ...}`. To exercise the
+full pipeline, write a file under
+`./local_s3/working/<bot_id>/<job_run_id>/<any filename>` containing a
+recognisable exception (see `docs/log-format.md` for the exact
+convention) and watch it become an incident via `GET /incidents`.
 
 ### Review UI
 
@@ -81,7 +78,7 @@ this reference implementation doesn't build the real OpenAM login redirect
 
 ```python
 from geniebot.api.deps import create_dev_token
-print(create_dev_token("your-name"))
+print(create_dev_token("your-name", role="admin"))  # role: end_user | l2_support | admin
 ```
 
 ## Repository layout
@@ -160,4 +157,4 @@ credentials/endpoint - no code changes required:
 | 10 | Shadow & pilot | `scripts/run_shadow_mode.py` gives the mechanics; the actual parallel run and calibration is an operational activity against real traffic |
 | 11 | Rollout | k8s templates + kill-switch + runbook in place; category-by-category rollout is controlled via `config/taxonomy.yaml`'s `rollout_status` field |
 
-See also: [docs/going-live.md](docs/going-live.md), [docs/runbook.md](docs/runbook.md), [docs/risks.md](docs/risks.md), [docs/open_items.md](docs/open_items.md).
+See also: [docs/setup.md](docs/setup.md), [docs/running-locally.md](docs/running-locally.md), [docs/log-format.md](docs/log-format.md), [docs/going-live.md](docs/going-live.md), [docs/runbook.md](docs/runbook.md), [docs/risks.md](docs/risks.md), [docs/open_items.md](docs/open_items.md).
