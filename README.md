@@ -121,6 +121,10 @@ control review instead (see the docstring in `api/routers/admin.py`).
 
 ## Production cutover checklist
 
+For a step-by-step walkthrough of these items plus how to build and
+maintain a real knowledge base (the sample corpus below is demo data
+only), see [docs/going-live.md](docs/going-live.md).
+
 For each row, flip the `*_BACKEND` env var and supply the matching
 credentials/endpoint - no code changes required:
 
@@ -156,4 +160,4 @@ credentials/endpoint - no code changes required:
 | 10 | Shadow & pilot | `scripts/run_shadow_mode.py` gives the mechanics; the actual parallel run and calibration is an operational activity against real traffic |
 | 11 | Rollout | k8s templates + kill-switch + runbook in place; category-by-category rollout is controlled via `config/taxonomy.yaml`'s `rollout_status` field |
 
-See also: [docs/runbook.md](docs/runbook.md), [docs/risks.md](docs/risks.md), [docs/open_items.md](docs/open_items.md).
+See also: [docs/going-live.md](docs/going-live.md), [docs/runbook.md](docs/runbook.md), [docs/risks.md](docs/risks.md), [docs/open_items.md](docs/open_items.md).
