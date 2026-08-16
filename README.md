@@ -130,7 +130,7 @@ credentials/endpoint - no code changes required:
 
 - [ ] `LLM_BACKEND=internal_platform` + `INTERNAL_AI_PLATFORM_BASE_URL` - confirm the actual chat/embeddings wire format matches `llm/internal_platform_client.py`'s OpenAI-compatible assumption; adjust the two request/response mappings if not.
 - [ ] `AUTH_BACKEND=openam` + `OPENAM_TOKEN_URL` / `DSP_TRANSLATE_URL` / client credentials + `JWT_JWKS_URL` for inbound API verification.
-- [ ] `VECTOR_STORE_BACKEND=pgvector` (already the default) + real `DATABASE_URL` with the pgvector extension available.
+- [ ] `VECTOR_STORE_BACKEND=pgvector` (already the default) + real `DATABASE_URL` with the pgvector extension available. No pgvector database provisioned yet? `VECTOR_STORE_BACKEND=faiss` is a local, restart-durable interim option - single-process only, see [docs/going-live.md](docs/going-live.md#11-deployment-shape-changes-first).
 - [ ] `STORAGE_BACKEND=s3` + `S3_BUCKET` - confirm the real Genie Bot log key/header convention matches `ingestion/incident_factory.py`, adjust if not.
 - [ ] `QUEUE_BACKEND=sqs` + `SQS_QUEUE_URL` / `SQS_DLQ_URL` with a redrive policy configured at the infra level.
 - [ ] `JIRA_BACKEND=real` + `JIRA_BASE_URL` / `JIRA_API_TOKEN` / `JIRA_USER_EMAIL`; configure the real Jira project's closure webhook to POST to `/incidents/webhooks/jira-closure`.

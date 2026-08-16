@@ -5,6 +5,7 @@ __pycache__/
 venv/
 .env
 *.db
+*.db-journal
 *.sqlite3
 .pytest_cache/
 .mypy_cache/
@@ -25,3 +26,4 @@ frontend/.vite/
 local_s3/
 local_data/
 .test_local_s3/
+local_faiss_index/

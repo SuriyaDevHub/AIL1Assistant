@@ -24,6 +24,8 @@ dependencies = [
     "python-multipart>=0.0.9",
     "tenacity>=9.0",
     "anthropic>=0.40",
+    "faiss-cpu>=1.8",
+    "numpy>=1.26",
 ]
 
 [project.optional-dependencies]

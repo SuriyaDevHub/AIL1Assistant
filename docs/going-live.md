@@ -31,6 +31,21 @@ Run `alembic upgrade head` as an explicit deploy step before either starts
 (`deploy/k8s/migrate-job.yaml`) - production intentionally does not
 auto-create tables on startup the way the dev script does.
 
+**No pgvector database provisioned yet?** `VECTOR_STORE_BACKEND=faiss`
+(`FAISS_INDEX_DIR`, default `./local_faiss_index`) is a local,
+file-based, restart-durable index - an interim step, not a replacement
+for pgvector. It has the exact same single-process constraint as
+`memory` above (a local index file isn't safely read/written by more
+than one process at a time - two processes writing around the same time
+is silent data loss, not just staleness), just persisted to disk instead
+of lost on every restart. Use it with the combined
+`scripts/seed_and_run_worker.py`, or otherwise guarantee a single
+process, and move to `pgvector` once it's actually available rather than
+trying to scale a `faiss`-backed deployment to multiple replicas. If the
+local index file ever goes missing or gets corrupted (e.g. an
+interrupted write), it's automatically rebuilt from `KBChunk` on next
+startup - see `kb/faiss_vector_store.py`.
+
 ### 1.2 Real log ingestion
 
 Two ways in, pick based on how Genie Bot (or whatever's producing the

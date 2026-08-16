@@ -119,9 +119,14 @@ class Settings(BaseSettings):
     secrets_manager_endpoint: str = Field(default="", alias="SECRETS_MANAGER_ENDPOINT")
 
     # Vector store
-    vector_store_backend: Literal["pgvector", "memory"] = Field(
+    vector_store_backend: Literal["pgvector", "memory", "faiss"] = Field(
         default="pgvector", alias="VECTOR_STORE_BACKEND"
     )
+    # faiss: a local, file-based, restart-durable index - an interim step
+    # for an environment without a provisioned pgvector database yet.
+    # Single-process only (kb/faiss_vector_store.py's module docstring) -
+    # same constraint "memory" already has today, just persisted to disk.
+    faiss_index_dir: str = Field(default="./local_faiss_index", alias="FAISS_INDEX_DIR")
 
     @property
     def is_production(self) -> bool:
