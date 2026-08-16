@@ -24,6 +24,7 @@ from typing import Generic, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from geniebot.llm.client import LLMClient
+from geniebot.settings import get_settings
 
 TIn = TypeVar("TIn")
 TOut = TypeVar("TOut", bound=BaseModel)
@@ -83,7 +84,11 @@ class BaseAgent(ABC, Generic[TIn, TOut]):
         records: list[AgentInvocationRecord] = []
         system = self.prompt_config["system"]
         user = self.build_user_prompt(agent_input)
-        model = self.prompt_config.get("model", "gpt-5.1")
+        # settings.generation_model, when set, overrides every prompt's own
+        # pinned model in one place - e.g. to point the whole pipeline at
+        # an internal AI platform's model without editing every prompt
+        # file. Empty (the default) keeps each prompt's own pinned model.
+        model = get_settings().generation_model or self.prompt_config.get("model", "gpt-5.1")
         temperature = self.prompt_config.get("temperature", 0.0)
         max_output_tokens = self.prompt_config.get("max_output_tokens", 1500)
         prompt_version = self.prompt_config.get("version", 1)

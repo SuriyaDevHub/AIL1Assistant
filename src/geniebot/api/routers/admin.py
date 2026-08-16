@@ -22,6 +22,7 @@ from geniebot.security.killswitch import is_processing_enabled, set_processing_e
 from geniebot.settings import (
     CONFIG_DIR,
     clear_config_cache,
+    get_generic_l1_checklist,
     get_guardrail_config,
     get_taxonomy,
     get_thresholds,
@@ -33,6 +34,7 @@ _CONFIG_FILES = {
     "thresholds": "thresholds.yaml",
     "guardrails": "guardrails.yaml",
     "taxonomy": "taxonomy.yaml",
+    "generic_l1_checklist": "generic_l1_checklist.yaml",
 }
 
 
@@ -42,11 +44,12 @@ async def get_config() -> dict:
         "thresholds": get_thresholds(),
         "guardrails": get_guardrail_config(),
         "taxonomy": get_taxonomy(),
+        "generic_l1_checklist": get_generic_l1_checklist(),
     }
 
 
 class ConfigUpdate(BaseModel):
-    file: Literal["thresholds", "guardrails", "taxonomy"]
+    file: Literal["thresholds", "guardrails", "taxonomy", "generic_l1_checklist"]
     content: dict
 
 

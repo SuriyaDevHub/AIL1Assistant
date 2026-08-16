@@ -40,6 +40,31 @@ _SAMPLE_SOPS = [
             "against the refresh scheduler rather than only treating the symptom."
         ),
     },
+    {
+        "id": "SOP-DATAVAL-01",
+        "title": "Genie Bot inbound file data validation failures",
+        "body": (
+            "Problem:\n"
+            "Any Genie Bot batch job failing with SchemaValidationFailure, missing/malformed required "
+            "fields, or a row-level validation rejection while loading an inbound file (e.g. a required "
+            "column absent, an unparseable amount/date, an out-of-range value). This category is not "
+            "eligible for automated resolution (config/taxonomy.yaml: DATA_VALIDATION is rollout_status "
+            "disabled) - always escalate to L2, even when the diagnosis is high-confidence.\n\n"
+            "Resolution:\n"
+            "1. Pull the exact rejected row(s) from the execution log evidence lines and confirm which "
+            "field(s) failed validation and why.\n"
+            "2. Check whether the upstream source system changed its file format or export job recently - "
+            "most recurrences trace back to an unannounced upstream schema change, not a one-off bad "
+            "record.\n"
+            "3. If it's a genuinely isolated bad record (e.g. a single malformed row), coordinate with the "
+            "data owner to correct or exclude that record at the source, then approve a controlled rerun "
+            "with the original job_run_id.\n"
+            "4. If it's a systemic format change, do not rerun against the same file - file a ticket with "
+            "the upstream team and hold the batch until a corrected export is provided.\n"
+            "5. Never approve a rerun that silently drops or defaults invalid rows to force a pass - "
+            "financial batch data must fail loud, not be guessed at."
+        ),
+    },
 ]
 
 

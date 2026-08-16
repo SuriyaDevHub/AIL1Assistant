@@ -3,7 +3,7 @@ import { getToken, setToken } from "../api/client";
 
 // Dev-only auth affordance - see api/client.ts header comment. In a real
 // deployment this bar is replaced by an OpenAM login redirect.
-export default function TokenBar() {
+export default function TokenBar({ onTokenChange }: { onTokenChange?: (token: string) => void }) {
   const [value, setValue] = useState(getToken());
   const [saved, setSaved] = useState(false);
 
@@ -22,6 +22,7 @@ export default function TokenBar() {
         onClick={() => {
           setToken(value);
           setSaved(true);
+          onTokenChange?.(value);
         }}
       >
         {saved ? "Saved" : "Set token"}

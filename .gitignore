@@ -24,3 +24,4 @@ frontend/.vite/
 
 local_s3/
 local_data/
+.test_local_s3/

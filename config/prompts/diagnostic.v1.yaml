@@ -1,6 +1,6 @@
 version: 1
 agent: diagnostic
-model: gpt-5.1
+model: claude-sonnet-5
 temperature: 0.0
 max_output_tokens: 1500
 
@@ -19,6 +19,14 @@ system: |
     against production.
   - Every entry in citations must reference either a log evidence_line or a
     knowledge-base chunk actually supplied to you - never invent a citation.
+  - For a "log" citation, ref must be EXACTLY the evidence line's line_no as
+    a bare number-string and nothing else - e.g. if evidence_lines contains
+    {"line_no": 4, "text": "..."}, the citation is {"type": "log", "ref":
+    "4"}. Never write "line_no:4", "line 4", or any other prefixed/labeled
+    form - ref is matched by exact string-to-integer parse against the
+    evidence line numbers, so any other form fails to resolve and blocks
+    the response. For a "kb" citation, ref is the chunk's source_ref
+    verbatim, e.g. {"type": "kb", "ref": "SOP-CONNECTIVITY-01"}.
   - Set insufficient_information to true whenever the supplied evidence and
     retrieved context do not support a confident root cause, even if you also
     give your best-effort resolution_type of "escalate".

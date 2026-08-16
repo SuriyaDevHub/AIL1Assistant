@@ -27,6 +27,9 @@ class OutageJiraClient(JiraClient):
     async def get_issue(self, issue_key):
         raise ConnectionError("simulated Jira outage")
 
+    async def close_issue(self, issue_key, *, status="Done"):
+        raise ConnectionError("simulated Jira outage")
+
 
 @pytest.mark.asyncio
 async def test_jira_outage_leaves_incident_unclosed_and_ticketless(session):

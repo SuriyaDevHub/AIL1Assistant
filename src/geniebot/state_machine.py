@@ -4,7 +4,10 @@ INGESTED -> SCREENED -> PARSED -> DIAGNOSED -> (AUTO_RESOLVE_CANDIDATE |
 ESCALATION_DRAFTED) -> AWAITING_REVIEW -> (SUBMITTED | REJECTED |
 RERUN_APPROVED) -> CLOSED. RERUN_APPROVED returns to DIAGNOSED (doc 2.2 step
 11). Terminal failure states BLOCKED_BY_GUARDRAIL, UNPARSEABLE and
-PLATFORM_UNAVAILABLE each route to MANUAL_FALLBACK.
+PLATFORM_UNAVAILABLE each route to MANUAL_FALLBACK - reachable as a
+fail-closed route from every state that still has agent/guardrail work
+ahead of it, including AUTO_RESOLVE_CANDIDATE and ESCALATION_DRAFTED
+(Template Generator and output guardrails, steps 8-9, run after both).
 
 This module is deterministic, pure Python - no I/O - so the transition graph
 can be unit tested exhaustively without a database.
@@ -61,8 +64,13 @@ _TRANSITIONS: dict[IncidentStatus, set[IncidentStatus]] = {
         {IncidentStatus.AUTO_RESOLVE_CANDIDATE, IncidentStatus.ESCALATION_DRAFTED}
         | _FAIL_CLOSED_TARGETS
     ),
-    IncidentStatus.AUTO_RESOLVE_CANDIDATE: {IncidentStatus.AWAITING_REVIEW},
-    IncidentStatus.ESCALATION_DRAFTED: {IncidentStatus.AWAITING_REVIEW},
+    # Steps 8-9 (Template Generator, output guardrails) run after this
+    # transition and can still fail (schema validation, LLM platform
+    # error, guardrail block) - both states need a fail-closed route, not
+    # just the happy-path one to AWAITING_REVIEW, or _fail_closed() itself
+    # raises IllegalTransitionError and the worker retry-loops forever.
+    IncidentStatus.AUTO_RESOLVE_CANDIDATE: {IncidentStatus.AWAITING_REVIEW} | _FAIL_CLOSED_TARGETS,
+    IncidentStatus.ESCALATION_DRAFTED: {IncidentStatus.AWAITING_REVIEW} | _FAIL_CLOSED_TARGETS,
     IncidentStatus.AWAITING_REVIEW: {
         IncidentStatus.SUBMITTED,
         IncidentStatus.REJECTED,

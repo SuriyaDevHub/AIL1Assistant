@@ -1,9 +1,14 @@
 """Integration Agent - doc section 5.6: "Deterministic orchestration with
 no generative step at submission time. Maps the approved template to Jira
 fields, attaches log references, dispatches the email, and applies
-deduplication before creation." Runs after a reviewer decision of
-"approve" (doc 2.2 step 12); reject just closes the incident with no
-integration side effects.
+deduplication before creation." (doc 2.2 step 12).
+
+Runs after either end-user outcome (api/routers/incidents.py
+review_incident): "resolved" (L1 fix confirmed working -
+resolution_confirmed=True, ticket is closed immediately) or "escalated" (L1
+fix didn't work - resolution_confirmed=False, ticket is left open for L2).
+Also still runs after the legacy staff "approve" decision. "reject" just
+closes the incident with no integration side effects.
 """
 from __future__ import annotations
 
@@ -18,7 +23,7 @@ from geniebot.settings import get_settings
 from geniebot.state_machine import IncidentStatus, transition
 
 
-def _build_description(incident: Incident, template: dict) -> str:
+def _build_description(incident: Incident, template: dict, *, resolution_confirmed: bool) -> str:
     diagnosis = incident.diagnosis or {}
     parts = [
         f"Incident: {incident.incident_id}",
@@ -31,7 +36,17 @@ def _build_description(incident: Incident, template: dict) -> str:
     if template.get("unknown_fields"):
         parts.append(f"Fields the assistant could not populate from evidence: {', '.join(template['unknown_fields'])}")
     parts.append("")
-    parts.append("This ticket was pre-filled by GenieBot L1 Assistant and approved by a human reviewer.")
+    if resolution_confirmed:
+        parts.append(
+            "This ticket documents an L1 resolution confirmed working by the submitter - filed for "
+            "audit history and knowledge-base feedback, not for L2 action."
+        )
+    else:
+        parts.append("This ticket was pre-filled by GenieBot L1 Assistant for L2 review.")
+    submitter = incident.reviewer_id or incident.user_id
+    parts.append(f"Submitted by: {submitter}")
+    if incident.reviewer_comment:
+        parts.append(f"Submitter comment: {incident.reviewer_comment}")
     return "\n".join(parts)
 
 
@@ -41,14 +56,24 @@ def _build_log_excerpt(incident: Incident) -> str:
     return "\n".join(lines) or "(no evidence lines captured)"
 
 
-def _build_email_body(incident: Incident, template: dict, dedup_basis: str | None) -> str:
+def _build_email_body(
+    incident: Incident, template: dict, dedup_basis: str | None, *, resolution_confirmed: bool
+) -> str:
+    headline = (
+        "Incident {id} was resolved by the end user applying the L1 fix and has been closed."
+        if resolution_confirmed
+        else "Incident {id} could not be resolved with the L1 fix and has been escalated to L2."
+    ).format(id=incident.incident_id)
     lines = [
-        f"Incident {incident.incident_id} has been approved and submitted.",
+        headline,
         f"Jira: {incident.jira_key}",
         f"Bot: {incident.bot_id}  Job run: {incident.job_run_id}",
+        f"Submitted by: {incident.reviewer_id or incident.user_id}",
         "",
         template.get("summary", ""),
     ]
+    if incident.reviewer_comment:
+        lines.append(f"\nComment: {incident.reviewer_comment}")
     if dedup_basis:
         lines.append(f"\n(Linked to an existing ticket - dedup basis: {dedup_basis})")
     return "\n".join(lines)
@@ -63,7 +88,15 @@ async def submit_incident(
     dedup_window_hours: int,
     dedup_fuzzy_threshold: float,
     support_mailbox: str,
+    resolution_confirmed: bool = False,
 ) -> None:
+    """resolution_confirmed=True: the end user reported the L1-proposed fix
+    actually worked, so there's no L2 action to wait for - the ticket exists
+    purely as an audit record and is closed immediately (caller is then
+    responsible for capturing the resolution into the KB feedback loop,
+    which needs an LLM client this deterministic module deliberately doesn't
+    take - doc 5.6 "no generative step at submission time"). Default False
+    is the escalation path: ticket is created/updated and left open for L2."""
     dedup_result = await check_duplicate(
         session, incident, window_hours=dedup_window_hours, fuzzy_threshold=dedup_fuzzy_threshold
     )
@@ -83,12 +116,17 @@ async def submit_incident(
 
     if dedup_result.is_duplicate and dedup_result.matched_jira_key:
         incident.jira_key = dedup_result.matched_jira_key
-        await jira_client.add_comment(
-            dedup_result.matched_jira_key,
+        comment = (
             f"Linked duplicate incident {incident.incident_id} "
             f"(bot_id={incident.bot_id}, job_run_id={incident.job_run_id}). "
-            f"Dedup basis: {dedup_result.basis}.",
+            f"Dedup basis: {dedup_result.basis}."
         )
+        if resolution_confirmed:
+            # The shared ticket may still be relevant to other linked
+            # incidents - note that this instance self-resolved rather than
+            # closing a ticket other job runs may still need L2 on.
+            comment += " This instance was resolved by the end user applying the L1 fix."
+        await jira_client.add_comment(dedup_result.matched_jira_key, comment)
     else:
         settings = get_settings()
         summary = template.get("summary") or (incident.diagnosis or {}).get("root_cause") or (
@@ -97,23 +135,35 @@ async def submit_incident(
         issue_key = await jira_client.create_issue(
             project_key=settings.jira_project_key,
             summary=summary[:250],
-            description=_build_description(incident, template),
+            description=_build_description(incident, template, resolution_confirmed=resolution_confirmed),
             labels=[l for l in [incident.error_signature_id, template.get("error_category")] if l],
             attachments=[("execution.log", _build_log_excerpt(incident).encode("utf-8"))],
         )
         incident.jira_key = issue_key
+        # Only close a ticket GenieBot just created for this incident - a
+        # matched duplicate ticket may still be relevant to other linked
+        # incidents, so it's left for L2 to close (handled above instead).
+        if resolution_confirmed:
+            await jira_client.close_issue(issue_key, status="Done")
 
     await mail_client.send(
         to=support_mailbox,
         subject=f"[Genie Bot] {incident.jira_key}: {incident.bot_id} / {incident.job_run_id}",
-        body=_build_email_body(incident, template, dedup_result.basis),
+        body=_build_email_body(incident, template, dedup_result.basis, resolution_confirmed=resolution_confirmed),
     )
 
-    incident.status = transition(incident.status, IncidentStatus.CLOSED)
-    await ledger.record(
-        session,
-        incident_id=incident.incident_id,
-        event_type="STATE_TRANSITION",
-        payload={"target_status": incident.status.value},
-    )
+    # resolution_confirmed=True: GenieBot just closed the ticket itself
+    # (above), so there's nothing left to wait on - close the incident now.
+    # False (escalated): the ticket is genuinely open for L2, so the
+    # incident stays SUBMITTED until it really closes - see
+    # api/routers/incidents.py's jira_closure_webhook / the demo
+    # simulate-jira-closure endpoint, which transition it then.
+    if resolution_confirmed:
+        incident.status = transition(incident.status, IncidentStatus.CLOSED)
+        await ledger.record(
+            session,
+            incident_id=incident.incident_id,
+            event_type="STATE_TRANSITION",
+            payload={"target_status": incident.status.value},
+        )
     await session.commit()

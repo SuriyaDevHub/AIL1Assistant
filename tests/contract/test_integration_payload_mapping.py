@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 
 from geniebot.db.models import Environment, Incident
+from geniebot.integrations.dedup import compute_error_signature_id
 from geniebot.integrations.integration_agent import submit_incident
 from geniebot.integrations.jira_client import MockJiraServer
 from geniebot.integrations.mail_client import MockMailClient
@@ -80,7 +81,12 @@ async def test_mail_dispatched_to_support_mailbox_with_jira_key(session):
 
 
 @pytest.mark.asyncio
-async def test_incident_closed_after_successful_submission(session):
+async def test_incident_stays_submitted_when_resolution_not_confirmed(session):
+    """Default (resolution_confirmed=False, the escalated path): the ticket
+    is genuinely open for L2, so the incident stays SUBMITTED rather than
+    closing itself - it closes later, when the ticket actually does (see
+    api/routers/incidents.py's jira_closure_webhook /
+    simulate_jira_closure)."""
     incident = _submitted_incident()
     session.add(incident)
     await session.commit()
@@ -89,4 +95,55 @@ async def test_incident_closed_after_successful_submission(session):
         session, incident, jira_client=MockJiraServer(), mail_client=MockMailClient(),
         dedup_window_hours=72, dedup_fuzzy_threshold=0.85, support_mailbox="support@bank.example",
     )
-    assert incident.status == IncidentStatus.CLOSED
+    assert incident.status == IncidentStatus.SUBMITTED
+    assert incident.jira_key is not None
+
+
+@pytest.mark.asyncio
+async def test_resolution_confirmed_closes_freshly_created_ticket(session):
+    """End user reported the L1 fix worked - the ticket GenieBot just
+    created for this incident is closed immediately, no L2 action needed."""
+    incident = _submitted_incident()
+    session.add(incident)
+    await session.commit()
+
+    jira = MockJiraServer()
+    await submit_incident(
+        session, incident, jira_client=jira, mail_client=MockMailClient(),
+        dedup_window_hours=72, dedup_fuzzy_threshold=0.85, support_mailbox="support@bank.example",
+        resolution_confirmed=True,
+    )
+
+    issue = await jira.get_issue(incident.jira_key)
+    assert issue.status == "Done"
+
+
+@pytest.mark.asyncio
+async def test_resolution_confirmed_does_not_close_shared_duplicate_ticket(session):
+    """A dedup match means this incident's ticket is really someone else's
+    still-open escalation - confirming this particular instance resolved
+    itself must not close a ticket other linked incidents may still need."""
+    jira = MockJiraServer()
+    existing_key = await jira.create_issue(project_key="GENIE", summary="original escalation", description="d")
+
+    signature_id = compute_error_signature_id(
+        exception_type="ConnectionError", failing_module="payments/loader.py", bot_id="payments-loader"
+    )
+    existing = _submitted_incident(job_run_id="run-0", jira_key=existing_key, error_signature_id=signature_id)
+    session.add(existing)
+    await session.commit()
+
+    incident = _submitted_incident(job_run_id="run-0")  # same signature -> exact_match dedup
+    session.add(incident)
+    await session.commit()
+
+    await submit_incident(
+        session, incident, jira_client=jira, mail_client=MockMailClient(),
+        dedup_window_hours=72, dedup_fuzzy_threshold=0.85, support_mailbox="support@bank.example",
+        resolution_confirmed=True,
+    )
+
+    assert incident.jira_key == existing_key
+    issue = await jira.get_issue(existing_key)
+    assert issue.status != "Done"
+    assert any("resolved by the end user" in c for c in issue.comments)

@@ -8,7 +8,7 @@ async def test_get_config_returns_thresholds_guardrails_taxonomy(client):
     r = await client.get("/admin/config")
     assert r.status_code == 200
     body = r.json()
-    assert set(body.keys()) == {"thresholds", "guardrails", "taxonomy"}
+    assert set(body.keys()) == {"thresholds", "guardrails", "taxonomy", "generic_l1_checklist"}
 
 
 @pytest.mark.asyncio
@@ -20,7 +20,8 @@ async def test_killswitch_defaults_enabled(client):
 
 @pytest.mark.asyncio
 async def test_killswitch_requires_auth_to_change(client):
-    r = await client.post("/admin/killswitch", json={"enabled": False})
+    # override the client fixture's default admin token with no credentials
+    r = await client.post("/admin/killswitch", json={"enabled": False}, headers={"Authorization": ""})
     assert r.status_code == 401
 
 

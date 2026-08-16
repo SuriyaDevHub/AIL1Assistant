@@ -7,13 +7,12 @@ a stub that always returns the same thing.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import time
-from math import sqrt
 
-from geniebot.llm.client import EMBED_DIM, EmbeddingResponse, LLMClient, LLMResponse
+from geniebot.llm.client import EmbeddingResponse, LLMClient, LLMResponse
+from geniebot.llm.local_embeddings import deterministic_embedding
 
 _ERROR_LINE = re.compile(
     r"^\s*(?P<lineno>\d+):\s*(?P<text>.*\b(?P<exc>[A-Za-z_][A-Za-z0-9_.]*"
@@ -211,22 +210,7 @@ class MockLLMClient(LLMClient):
         )
 
     async def embed(self, texts: list[str], *, model: str) -> EmbeddingResponse:
-        vectors = [_deterministic_embedding(t) for t in texts]
+        vectors = [deterministic_embedding(t) for t in texts]
         return EmbeddingResponse(
             vectors=vectors, model=model, tokens=sum(max(1, len(t) // 4) for t in texts)
         )
-
-
-def _deterministic_embedding(text: str, dim: int = EMBED_DIM) -> list[float]:
-    """Feature-hashed bag-of-tokens embedding. Deterministic, no network -
-    good enough for local retrieval-recall tests; not a real embedding
-    model output, swap LLM_BACKEND=internal_platform for that."""
-    vec = [0.0] * dim
-    tokens = re.findall(r"[A-Za-z0-9_]+", text.lower())
-    for token in tokens:
-        digest = hashlib.md5(token.encode("utf-8")).digest()
-        bucket = int.from_bytes(digest[:4], "big") % dim
-        sign = 1.0 if digest[4] % 2 == 0 else -1.0
-        vec[bucket] += sign
-    norm = sqrt(sum(v * v for v in vec)) or 1.0
-    return [v / norm for v in vec]

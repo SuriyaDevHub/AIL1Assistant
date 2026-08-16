@@ -43,12 +43,44 @@ class Settings(BaseSettings):
     local_s3_root: str = Field(default="./local_s3", alias="LOCAL_S3_ROOT")
 
     # LLM
-    llm_backend: Literal["mock", "internal_platform"] = Field(default="mock", alias="LLM_BACKEND")
+    llm_backend: Literal["mock", "internal_platform", "openai", "anthropic"] = Field(
+        default="mock", alias="LLM_BACKEND"
+    )
     internal_ai_platform_base_url: str = Field(
         default="https://internal-ai-platform.example.bank/v1",
         alias="INTERNAL_AI_PLATFORM_BASE_URL",
     )
-    generation_model: str = Field(default="gpt-5.1", alias="GENERATION_MODEL")
+    # Optional path to a CA bundle (PEM file) for a restricted network whose
+    # internal FQDNs present certs signed by an internal CA not in the
+    # system trust store. Empty = use the default trust store. Passed
+    # straight to httpx's `verify=` - covers both the chat/embeddings calls
+    # (llm/internal_platform_client.py) and the OpenAM/DSP token calls
+    # (llm/auth.py's OpenAMDSPTokenProvider), since both typically live on
+    # the same internal network.
+    internal_ai_platform_ca_bundle: str = Field(default="", alias="INTERNAL_AI_PLATFORM_CA_BUNDLE")
+    # openai: a real, publicly-reachable OpenAI-compatible backend (OpenAI
+    # itself, Azure OpenAI, a self-hosted server) authenticated with a plain
+    # API key rather than OpenAM/DSP - see llm/auth.py's StaticTokenProvider
+    # and llm/factory.py. Distinct from internal_platform above, which is
+    # the doc-described bank platform behind OpenAM.
+    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    openai_base_url: str = Field(default="https://api.openai.com/v1", alias="OPENAI_BASE_URL")
+    # anthropic: the real Anthropic Messages API - a different wire format
+    # from the OpenAI-compatible client above, so it has its own client
+    # class (llm/anthropic_client.py). No embeddings endpoint, so KB
+    # retrieval falls back to the local deterministic embedding either way.
+    anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
+    # No /v1 suffix - unlike the OpenAI-compatible base_url above, the
+    # official anthropic SDK appends /v1/... itself; including /v1 here
+    # double-prefixes the path and 404s.
+    anthropic_base_url: str = Field(default="https://api.anthropic.com", alias="ANTHROPIC_BASE_URL")
+    # Empty by default: each agent's prompt config (config/prompts/*.yaml
+    # `model:` field) pins its own model, since a prompt is often tuned
+    # against one specific model's response style. Set GENERATION_MODEL to
+    # override every agent to one model in one place - e.g. to switch the
+    # whole pipeline onto whatever your internal AI platform serves,
+    # without hand-editing all three prompt files. See agents/base.py.
+    generation_model: str = Field(default="", alias="GENERATION_MODEL")
     embedding_model: str = Field(default="text-embedding-small", alias="EMBEDDING_MODEL")
 
     # Auth
@@ -123,6 +155,11 @@ def get_taxonomy() -> dict:
 
 
 @lru_cache
+def get_generic_l1_checklist() -> dict:
+    return _load_yaml("generic_l1_checklist.yaml")
+
+
+@lru_cache
 def get_prompt_config(name: str) -> dict:
     """name e.g. 'log_parser.v1.yaml' - see config/prompts/."""
     return _load_yaml(f"prompts/{name}")
@@ -133,4 +170,5 @@ def clear_config_cache() -> None:
     get_thresholds.cache_clear()
     get_guardrail_config.cache_clear()
     get_taxonomy.cache_clear()
+    get_generic_l1_checklist.cache_clear()
     get_prompt_config.cache_clear()

@@ -35,6 +35,19 @@ class MockTokenProvider(TokenProvider):
         return self._token
 
 
+class StaticTokenProvider(TokenProvider):
+    """Plain API-key auth for providers that don't use OpenAM/DSP token
+    translation (OpenAI, Azure OpenAI, self-hosted OpenAI-compatible
+    servers) - no refresh loop needed since API keys don't expire on a
+    schedule the way the OAuth tokens above do."""
+
+    def __init__(self, api_key: str):
+        self._api_key = api_key
+
+    async def get_token(self) -> str:
+        return self._api_key
+
+
 class OpenAMDSPTokenProvider(TokenProvider):
     """Real implementation: OAuth2 client-credentials against OpenAM, then
     DSP token translation, cached and refreshed in the background.
@@ -53,13 +66,18 @@ class OpenAMDSPTokenProvider(TokenProvider):
         client_secret: str,
         refresh_margin_seconds: int = 60,
         http_client: httpx.AsyncClient | None = None,
+        ca_bundle: str | None = None,
     ):
         self._openam_token_url = openam_token_url
         self._dsp_translate_url = dsp_translate_url
         self._client_id = client_id
         self._client_secret = client_secret
         self._refresh_margin = refresh_margin_seconds
-        self._http = http_client or httpx.AsyncClient(timeout=10.0)
+        # ca_bundle: path to a PEM file for a restricted network's internal
+        # CA (settings.internal_ai_platform_ca_bundle) - ignored if an
+        # http_client is supplied directly (tests/callers that already
+        # built their own client own that configuration).
+        self._http = http_client or httpx.AsyncClient(timeout=10.0, verify=ca_bundle or True)
         self._token: str | None = None
         self._expires_at: float = 0.0
         self._refresh_task: asyncio.Task | None = None

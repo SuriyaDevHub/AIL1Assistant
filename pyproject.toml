@@ -23,6 +23,7 @@ dependencies = [
     "jsonschema>=4.23",
     "python-multipart>=0.0.9",
     "tenacity>=9.0",
+    "anthropic>=0.40",
 ]
 
 [project.optional-dependencies]

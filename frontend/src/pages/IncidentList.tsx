@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { IncidentListItem, listIncidents } from "../api/client";
+import { usePolling } from "../hooks/usePolling";
+
+const POLL_INTERVAL_MS = 4000;
 
 const STATUS_OPTIONS = [
   "",
@@ -27,14 +30,25 @@ export default function IncidentList() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
+  const fetchIncidents = useCallback((showSpinner: boolean) => {
+    if (showSpinner) setLoading(true);
     listIncidents({ status: status || undefined })
-      .then(setIncidents)
+      .then((data) => {
+        setIncidents(data);
+        setError(null);
+      })
       .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
+      .finally(() => showSpinner && setLoading(false));
   }, [status]);
+
+  useEffect(() => {
+    fetchIncidents(true);
+  }, [fetchIncidents]);
+
+  // Live updates: new incidents and status changes (e.g. the worker moving
+  // one out of AWAITING_REVIEW) show up without a manual reload. No
+  // spinner on background refreshes - only the initial/status-change load.
+  usePolling(() => fetchIncidents(false), POLL_INTERVAL_MS);
 
   return (
     <div>

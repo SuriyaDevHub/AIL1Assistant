@@ -10,13 +10,13 @@ each of which the state machine only allows to continue on to
 MANUAL_FALLBACK - doc 1.4 "fail closed". Every step's outcome is written to
 the audit ledger - doc 1.4 "everything auditable".
 
-Deliberate simplification vs. the literal wording of doc step 8: the
-Template Generator Agent runs for both AUTO_RESOLVE_CANDIDATE and
-ESCALATION_DRAFTED paths (not only "where escalation is required"), so the
-Integration Agent (step 12) always has a uniform, structured payload to
-build the Jira ticket and email from, regardless of which path an incident
-took. Nothing downstream distinguishes the two paths on whether a template
-exists - only on diagnosis.resolution_type.
+Per doc step 8, the Template Generator Agent only runs "where escalation is
+required" - AUTO_RESOLVE_CANDIDATE incidents (confidence gate passed) skip
+it and reach the reviewer with just the diagnosis, matching the design
+doc's self-healing/controlled-rerun path. incident.template_payload stays
+None on that path; the Integration Agent (integrations/integration_agent.py)
+already falls back to diagnosis fields when building the Jira/email content
+if a reviewer approves such an incident straight to L2 instead of a rerun.
 """
 from __future__ import annotations
 
@@ -36,6 +36,7 @@ from geniebot.audit import ledger
 from geniebot.db.models import Incident
 from geniebot.guardrails.input_guardrails import evaluate_input_guardrails
 from geniebot.guardrails.output_guardrails import evaluate_output_guardrails
+from geniebot.integrations.dedup import compute_error_signature_id
 from geniebot.kb.retrieval import retrieve
 from geniebot.kb.vector_store import VectorStore
 from geniebot.llm.client import LLMClient, LLMPlatformError
@@ -46,7 +47,7 @@ from geniebot.observability.metrics import (
     record_incident_outcome,
     record_no_precedent,
 )
-from geniebot.schemas.diagnosis import DiagnosticAgentInput
+from geniebot.schemas.diagnosis import DiagnosisOutput, DiagnosticAgentInput
 from geniebot.schemas.parser import ParseOutput, ParserAgentInput
 from geniebot.schemas.template import TemplateAgentInput, validate_against_template_schema
 from geniebot.security.killswitch import is_processing_enabled
@@ -261,10 +262,68 @@ async def process_rerun(session: AsyncSession, incident_id: str, ctx: PipelineCo
     await _run_diagnosis_onwards(session, incident, parse_output, ctx)
 
 
+async def ensure_template_payload(session: AsyncSession, incident: Incident, ctx: PipelineContext) -> None:
+    """Lazily runs the Template Generator Agent for an incident that reached
+    AWAITING_REVIEW without one - an AUTO_RESOLVE_CANDIDATE, per doc step 8
+    only generates a template "where escalation is required", so a self-heal
+    candidate has none. Called when the end user then reports the L1 fix
+    didn't work after all (api/routers/incidents.py's "escalated" decision),
+    so escalation is now required and a template is needed for the Jira
+    ticket. No-op if a template already exists (the normal escalation path,
+    where the pipeline already generated one up front).
+
+    Doesn't re-run retrieval - the original diagnosis (with its own
+    citations) is reused as-is; template_precedents is just extra generation
+    context, not required for a schema-valid template.
+    """
+    if incident.template_payload is not None:
+        return
+
+    parse_output = ParseOutput.model_validate(incident.parse_output)
+    diagnosis = DiagnosisOutput.model_validate(incident.diagnosis)
+    template_agent = TemplateGeneratorAgent(ctx.llm_client, get_prompt_config("template_generator.v1.yaml"))
+    template_payload, records = await template_agent.run(
+        TemplateAgentInput(
+            incident_id=incident.incident_id,
+            bot_id=incident.bot_id,
+            job_run_id=incident.job_run_id,
+            environment=incident.environment.value,
+            log_s3_uri=incident.log_s3_uri,
+            parse_output=parse_output,
+            diagnosis=diagnosis,
+            template_precedents=[],
+        )
+    )
+    # exclude_none: optional fields (log_s3_uri, priority) the model leaves
+    # unset serialize to `null` under Pydantic's default dump, but
+    # config/template_schema.json types them as plain "string" with no
+    # null variant - a present-but-null value fails that check even though
+    # the field is correctly not in the schema's "required" list. Omitting
+    # unset optional fields entirely satisfies both.
+    template_payload_json = template_payload.model_dump(mode="json", exclude_none=True)
+    validate_against_template_schema(template_payload_json)
+
+    await _record_agent_records(session, incident, records, ctx.thresholds)
+    _accumulate_cost(incident, records, ctx.thresholds)
+    incident.template_payload = template_payload_json
+    await session.commit()
+
+
 async def _run_diagnosis_onwards(
     session: AsyncSession, incident: Incident, parse_output: ParseOutput, ctx: PipelineContext
 ) -> None:
     thresholds = ctx.thresholds
+
+    # Computed here (rather than only later, in dedup.check_duplicate at
+    # submission time) so it's available to the /precedent endpoint as soon
+    # as diagnosis completes - well before a reviewer has made a decision.
+    # check_duplicate recomputes+overwrites the same value at submission
+    # time, so this is purely additive.
+    incident.error_signature_id = compute_error_signature_id(
+        exception_type=parse_output.exception_type,
+        failing_module=parse_output.failing_module,
+        bot_id=incident.bot_id,
+    )
 
     # --- Step 5: retrieval ---
     error_category = match_error_category(f"{parse_output.exception_type} {parse_output.exception_message}", ctx.taxonomy)
@@ -342,50 +401,69 @@ async def _run_diagnosis_onwards(
         event_type="CONFIDENCE_GATE",
         payload={"passed": gate_result.passed, "reasons": gate_result.reasons},
     )
+    # The gate is the deterministic, policy-aware authority on whether this
+    # incident may be self-served (confidence, citations, taxonomy
+    # rollout_status) - the model's own resolution_type claim is just a
+    # proposal. When the gate fails, force resolution_type to reflect that,
+    # so the review UI's "did the suggested fix work?" prompt (which reads
+    # resolution_type, not the gate result) never offers a self-service try
+    # on an incident the gate has already decided must escalate. Full dict
+    # reassignment, not in-place mutation, for SQLAlchemy JSON change
+    # tracking.
+    if not gate_result.passed and incident.diagnosis.get("resolution_type") != "escalate":
+        incident.diagnosis = {**incident.diagnosis, "resolution_type": "escalate"}
     gate_target = IncidentStatus.AUTO_RESOLVE_CANDIDATE if gate_result.passed else IncidentStatus.ESCALATION_DRAFTED
     await _transition(session, incident, gate_target)
     record_incident_outcome(gate_target.value)
     await session.commit()
 
-    # --- Step 8: Template Generator Agent ---
-    template_agent = TemplateGeneratorAgent(ctx.llm_client, get_prompt_config("template_generator.v1.yaml"))
-    try:
-        template_payload, records = await template_agent.run(
-            TemplateAgentInput(
-                incident_id=incident.incident_id,
-                bot_id=incident.bot_id,
-                job_run_id=incident.job_run_id,
-                environment=incident.environment.value,
-                log_s3_uri=incident.log_s3_uri,
-                parse_output=parse_output,
-                diagnosis=diagnosis,
-                template_precedents=retrieval_result.chunks,
+    # --- Step 8: Template Generator Agent - only "where escalation is
+    # required" (doc step 8); self-heal candidates skip straight to review.
+    generated_text = f"{diagnosis.root_cause}\n{diagnosis.proposed_resolution}"
+    if not gate_result.passed:
+        template_agent = TemplateGeneratorAgent(ctx.llm_client, get_prompt_config("template_generator.v1.yaml"))
+        try:
+            template_payload, records = await template_agent.run(
+                TemplateAgentInput(
+                    incident_id=incident.incident_id,
+                    bot_id=incident.bot_id,
+                    job_run_id=incident.job_run_id,
+                    environment=incident.environment.value,
+                    log_s3_uri=incident.log_s3_uri,
+                    parse_output=parse_output,
+                    diagnosis=diagnosis,
+                    template_precedents=retrieval_result.chunks,
+                )
             )
-        )
-        validate_against_template_schema(template_payload.model_dump(mode="json"))
-    except AgentSchemaValidationError as exc:
-        await _fail_closed(session, incident, IncidentStatus.PLATFORM_UNAVAILABLE, str(exc), "AGENT_SCHEMA_VALIDATION")
-        return
-    except jsonschema.ValidationError as exc:
-        await _fail_closed(session, incident, IncidentStatus.PLATFORM_UNAVAILABLE, str(exc.message), "TEMPLATE_SCHEMA_INVALID")
-        return
-    except LLMPlatformError as exc:
-        await _fail_closed(session, incident, IncidentStatus.PLATFORM_UNAVAILABLE, str(exc), "LLM_PLATFORM_ERROR")
-        return
+            # exclude_none: optional fields (log_s3_uri, priority) the model
+            # leaves unset serialize to `null` under Pydantic's default
+            # dump, but config/template_schema.json types them as plain
+            # "string" with no null variant - a present-but-null value
+            # fails that check even though the field is correctly not in
+            # the schema's "required" list. Omitting unset optional fields
+            # entirely satisfies both.
+            template_payload_json = template_payload.model_dump(mode="json", exclude_none=True)
+            validate_against_template_schema(template_payload_json)
+        except AgentSchemaValidationError as exc:
+            await _fail_closed(session, incident, IncidentStatus.PLATFORM_UNAVAILABLE, str(exc), "AGENT_SCHEMA_VALIDATION")
+            return
+        except jsonschema.ValidationError as exc:
+            await _fail_closed(session, incident, IncidentStatus.PLATFORM_UNAVAILABLE, str(exc.message), "TEMPLATE_SCHEMA_INVALID")
+            return
+        except LLMPlatformError as exc:
+            await _fail_closed(session, incident, IncidentStatus.PLATFORM_UNAVAILABLE, str(exc), "LLM_PLATFORM_ERROR")
+            return
 
-    await _record_agent_records(session, incident, records, thresholds)
-    _accumulate_cost(incident, records, thresholds)
-    incident.template_payload = template_payload.model_dump(mode="json")
+        await _record_agent_records(session, incident, records, thresholds)
+        _accumulate_cost(incident, records, thresholds)
+        incident.template_payload = template_payload_json
+        generated_text += f"\n{template_payload.summary}\n{template_payload.recommended_action}"
 
     # --- Step 9: output guardrails ---
     output_cfg = ctx.guardrail_config["output_guardrails"]
     evidence_line_numbers = {e.line_no for e in parse_output.evidence_lines}
     kb_source_refs = {c.source_ref for c in retrieval_result.chunks}
     citation_refs = [(c.type, c.ref) for c in diagnosis.citations]
-    generated_text = (
-        f"{diagnosis.root_cause}\n{diagnosis.proposed_resolution}\n"
-        f"{template_payload.summary}\n{template_payload.recommended_action}"
-    )
 
     output_result = evaluate_output_guardrails(
         generated_text=generated_text,

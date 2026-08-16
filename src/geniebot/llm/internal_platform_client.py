@@ -1,14 +1,21 @@
-"""Real client for the internal AI platform (doc 2.3: GPT-5.1 generation,
-text-embedding-small embedding, JWT-authenticated). Assumes an
-OpenAI-compatible REST surface (POST {base_url}/chat/completions,
-POST {base_url}/embeddings) since the doc doesn't specify the exact wire
-format - confirm against the platform's actual API contract before
-production cutover and adjust the two request/response mappings below; the
-LLMClient interface and every caller stay unchanged either way.
+"""Real client for an OpenAI-compatible REST surface (POST
+{base_url}/chat/completions, POST {base_url}/embeddings) - JWT-authenticated
+against the internal AI platform (doc 2.3: GPT-5.1 generation,
+text-embedding-small embedding) when LLM_BACKEND=internal_platform, or
+plain-API-key-authenticated against a real OpenAI-compatible endpoint
+(OpenAI itself, Azure OpenAI, self-hosted) when LLM_BACKEND=openai - same
+client class either way, only the TokenProvider differs (llm/factory.py).
 
-Not exercised without a real internal_ai_platform_base_url and a working
-TokenProvider - set LLM_BACKEND=internal_platform and AUTH_BACKEND=openam
-in .env to enable.
+The internal platform's exact wire format isn't specified by the doc -
+confirm against its actual API contract before production cutover and
+adjust the two request/response mappings below if needed; the LLMClient
+interface and every caller stay unchanged either way. response_format
+below is OpenAI/Azure-OpenAI JSON mode - drop it if the internal platform
+doesn't support it.
+
+Not exercised without a real base URL and a working TokenProvider - set
+LLM_BACKEND=internal_platform (+ AUTH_BACKEND=openam) or LLM_BACKEND=openai
+(+ OPENAI_API_KEY) in .env to enable.
 """
 from __future__ import annotations
 
@@ -31,10 +38,14 @@ class InternalPlatformLLMClient(LLMClient):
         token_provider: TokenProvider,
         http_client: httpx.AsyncClient | None = None,
         timeout_seconds: float = 30.0,
+        ca_bundle: str | None = None,
     ):
         self._base_url = base_url.rstrip("/")
         self._token_provider = token_provider
-        self._http = http_client or httpx.AsyncClient(timeout=timeout_seconds)
+        # ca_bundle: path to a PEM file for a restricted network's internal
+        # CA (settings.internal_ai_platform_ca_bundle) - ignored if an
+        # http_client is supplied directly.
+        self._http = http_client or httpx.AsyncClient(timeout=timeout_seconds, verify=ca_bundle or True)
 
     async def _headers(self) -> dict[str, str]:
         token = await self._token_provider.get_token()
@@ -64,6 +75,7 @@ class InternalPlatformLLMClient(LLMClient):
                     "model": model,
                     "temperature": temperature,
                     "max_tokens": max_output_tokens,
+                    "response_format": {"type": "json_object"},
                     "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": user},

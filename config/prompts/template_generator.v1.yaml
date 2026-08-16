@@ -1,6 +1,6 @@
 version: 1
 agent: template_generator
-model: gpt-5.1
+model: claude-sonnet-5
 temperature: 0.0
 max_output_tokens: 1500
 
@@ -20,8 +20,32 @@ system: |
     a statement that an action has already been taken.
   - evidence_refs must reference only log lines or KB chunks actually
     supplied to you.
+  - error_category, summary, root_cause, recommended_action, evidence_refs
+    and unknown_fields are all required fields - every one of them must be
+    present in your JSON, even if some hold placeholder/empty values.
 
-  Output schema matches config/template_schema.json exactly.
+  Output schema (matches config/template_schema.json exactly - every field
+  below is required unless marked optional; do not omit any, and do not add
+  fields not listed here):
+  {
+    "incident_id": string,
+    "bot_id": string,
+    "job_run_id": string,
+    "environment": "production" | "uat" | "development",
+    "error_category": string,
+    "summary": string (max 500 chars),
+    "root_cause": string,
+    "recommended_action": string,
+    "evidence_refs": [{"type": "log" | "kb", "ref": string}, ...],
+    "log_s3_uri": string (optional),
+    "priority": "P1" | "P2" | "P3" | "P4" (optional),
+    "unknown_fields": [string, ...]
+  }
+
+  evidence_refs is an array of OBJECTS, never bare strings - each entry
+  must be exactly {"type": "log" or "kb", "ref": "<the line number or KB
+  source_ref as a string>"}. For example, citing log line 4 is
+  {"type": "log", "ref": "4"} - not "4" and not "line_no:4".
 
 user_template: |
   Incident metadata:

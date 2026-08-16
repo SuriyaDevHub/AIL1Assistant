@@ -4,10 +4,22 @@ import os
 
 # Must be set before geniebot.settings.get_settings() is first called
 # (it's lru_cached process-wide) - the test suite runs entirely against
-# SQLite, and the real PgVectorStore backend requires Postgres, so force
-# the in-memory vector store backend for the whole test session regardless
-# of any .env a developer happens to have lying around.
+# SQLite and MockLLMClient/MockJiraServer/MockMailClient, so force every
+# backend selector to its local/mock value for the whole test session
+# regardless of any .env a developer happens to have lying around (e.g. one
+# configured with a real LLM_BACKEND=openai for a live demo - without this,
+# tests would make real, billed network calls and fail on rate limits
+# instead of running hermetically).
 os.environ.setdefault("VECTOR_STORE_BACKEND", "memory")
+os.environ.setdefault("LLM_BACKEND", "mock")
+os.environ.setdefault("AUTH_BACKEND", "mock")
+os.environ.setdefault("JIRA_BACKEND", "mock")
+os.environ.setdefault("MAIL_BACKEND", "mock")
+# ingestion/factory.py's get_event_source() defaults to LOCAL_S3_ROOT=./local_s3
+# (the same directory the dev demo drops sample logs into) - point tests at
+# their own scratch directory instead, or a test posting to /ingest/trigger
+# would read/write real demo data.
+os.environ.setdefault("LOCAL_S3_ROOT", "./.test_local_s3")
 
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine

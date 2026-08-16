@@ -1,6 +1,6 @@
 """Mail dispatch - doc section 7.2: "Dispatch of alert and completed
 template to the Genie Support Mailbox". RealSMTPClient works against both a
-real SMTP relay and MailHog (docker-compose) since MailHog speaks plain
+real SMTP relay and a local MailHog instance since MailHog speaks plain
 SMTP with no auth on port 1025. MockMailClient captures sent messages
 in-memory for local runs/tests with no SMTP server at all.
 """

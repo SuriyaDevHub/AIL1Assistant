@@ -20,11 +20,19 @@ budget:
   per_incident_cost_ceiling_usd: 0.50
   per_incident_token_ceiling: 60000
   anomalous_cost_multiplier: 5.0   # alert if an incident costs > 5x the running average
-  # Placeholder blended rate (doc doesn't specify internal-platform pricing,
-  # section 13 open item "production prompts larger than ideation" flags
-  # cost as unresolved) - replace with the internal AI platform's real
+  # Blended input/output rate for claude-sonnet-5 (config/prompts/*.yaml's
+  # model), the real backend used when LLM_BACKEND=anthropic - Sonnet 5 is
+  # $3.00/$15.00 per 1M input/output tokens (sticker; a temporary intro
+  # rate of $2/$10 applies through 2026-08-31 - not used here so this
+  # number doesn't need updating when the intro window ends), blended
+  # ~3:1 input:output for these mostly-extraction/diagnosis calls ->
+  # (0.75*3 + 0.25*15)/1000 = 0.006. Approximate, not a precise per-call
+  # figure (real ratios vary per agent). Still a placeholder for the doc's
+  # real internal-platform pricing (section 13 open item) if/when
+  # LLM_BACKEND=internal_platform is actually cut over, or for OpenAI's
+  # rate if LLM_BACKEND=openai - replace with whichever backend's real
   # per-token rate before trusting the cost telemetry in production.
-  cost_per_1k_tokens_usd: 0.01
+  cost_per_1k_tokens_usd: 0.006
 
 loop:
   max_controlled_reruns_per_incident: 2

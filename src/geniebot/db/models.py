@@ -46,6 +46,10 @@ class ReviewDecision(str, enum.Enum):
     APPROVE = "approve"
     REJECT = "reject"
     APPROVE_RERUN = "approve_rerun"
+    # End-user self-service outcomes (redesigned flow): the end user who hit
+    # the error tries the L1-proposed fix themselves and reports back.
+    RESOLVED = "resolved"
+    ESCALATED = "escalated"
 
 
 class DocType(str, enum.Enum):

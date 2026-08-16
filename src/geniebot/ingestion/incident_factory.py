@@ -18,8 +18,10 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from geniebot.audit import ledger
 from geniebot.db.models import Environment, Incident
-from geniebot.ingestion.s3_listener import StorageEvent
+from geniebot.ingestion.s3_listener import StorageEvent, StorageEventSource
+from geniebot.queue.base import Queue
 from geniebot.settings import get_settings
 from geniebot.state_machine import IncidentStatus
 
@@ -67,3 +69,30 @@ async def create_incident_if_failure(
     session.add(incident)
     await session.commit()
     return incident
+
+
+async def ingest_storage_event(
+    event: StorageEvent, *, event_source: StorageEventSource, queue: Queue, session: AsyncSession
+) -> str | None:
+    """Pulls the object and creates+enqueues an incident if it's a failure
+    log - the one place both discovery paths converge: the polling loop
+    (orchestration/worker.py's run_ingestion_loop) and a push trigger (e.g.
+    api/routers/ingest.py, for a system like an RPA platform that already
+    knows which object just failed rather than making us discover it by
+    polling). A triggered incident and a polling-discovered one are
+    identical downstream - same Incident row shape, same queue message,
+    same INGESTED audit record. Returns the new incident_id, or None if
+    this wasn't a failure log."""
+    raw_text = await event_source.read_object(event.key)
+    incident = await create_incident_if_failure(session, event, raw_text)
+    if incident is None:
+        return None
+    await queue.enqueue({"incident_id": incident.incident_id})
+    await ledger.record(
+        session,
+        incident_id=incident.incident_id,
+        event_type="INGESTED",
+        payload={"bucket": event.bucket, "key": event.key, "size": event.size},
+    )
+    await session.commit()
+    return incident.incident_id

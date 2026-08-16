@@ -32,6 +32,13 @@ FAIL_CLOSED_ROUTES = [
     (IncidentStatus.INGESTED, IncidentStatus.BLOCKED_BY_GUARDRAIL),
     (IncidentStatus.SCREENED, IncidentStatus.UNPARSEABLE),
     (IncidentStatus.PARSED, IncidentStatus.PLATFORM_UNAVAILABLE),
+    # Steps 8-9 (Template Generator, output guardrails) run after the
+    # confidence-gate transition and can still fail - both gate outcomes
+    # need a fail-closed route, not just the happy path to AWAITING_REVIEW.
+    (IncidentStatus.AUTO_RESOLVE_CANDIDATE, IncidentStatus.PLATFORM_UNAVAILABLE),
+    (IncidentStatus.AUTO_RESOLVE_CANDIDATE, IncidentStatus.BLOCKED_BY_GUARDRAIL),
+    (IncidentStatus.ESCALATION_DRAFTED, IncidentStatus.PLATFORM_UNAVAILABLE),
+    (IncidentStatus.ESCALATION_DRAFTED, IncidentStatus.BLOCKED_BY_GUARDRAIL),
     (IncidentStatus.BLOCKED_BY_GUARDRAIL, IncidentStatus.MANUAL_FALLBACK),
     (IncidentStatus.UNPARSEABLE, IncidentStatus.MANUAL_FALLBACK),
     (IncidentStatus.PLATFORM_UNAVAILABLE, IncidentStatus.MANUAL_FALLBACK),

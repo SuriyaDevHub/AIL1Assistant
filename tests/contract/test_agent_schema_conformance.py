@@ -1,4 +1,5 @@
 """doc 9 "Contract" row: agent output schema conformance."""
+import os
 from datetime import UTC, datetime
 
 import pytest
@@ -11,7 +12,7 @@ from geniebot.schemas.diagnosis import DiagnosticAgentInput
 from geniebot.schemas.kb import RetrievedChunk
 from geniebot.schemas.parser import ParserAgentInput
 from geniebot.schemas.template import TemplateAgentInput, validate_against_template_schema
-from geniebot.settings import CONFIG_DIR
+from geniebot.settings import CONFIG_DIR, get_settings
 
 
 def _load_prompt(name: str) -> dict:
@@ -88,3 +89,26 @@ async def test_log_parser_returns_unparseable_for_garbage_input(llm_client):
         ParserAgentInput(incident_id="i1", bot_id="b1", job_run_id="r1", environment="production", redacted_log="asdf qwer zxcv no signal here")
     )
     assert output.parse_status == "unparseable"
+
+
+@pytest.mark.asyncio
+async def test_generation_model_setting_overrides_prompts_own_pinned_model(llm_client):
+    """settings.generation_model (GENERATION_MODEL), when set, overrides
+    every agent's individually-pinned model in one place - e.g. to point
+    the whole pipeline at an internal AI platform's model without editing
+    every prompt file (agents/base.py)."""
+    original = os.environ.get("GENERATION_MODEL")
+    os.environ["GENERATION_MODEL"] = "internal-platform-model-x"
+    get_settings.cache_clear()
+    try:
+        agent = LogParserAgent(llm_client, _load_prompt("log_parser.v1.yaml"))
+        _, records = await agent.run(
+            ParserAgentInput(incident_id="i1", bot_id="b1", job_run_id="r1", environment="production", redacted_log=SAMPLE_LOG)
+        )
+        assert records[-1].model == "internal-platform-model-x"
+    finally:
+        if original is None:
+            os.environ.pop("GENERATION_MODEL", None)
+        else:
+            os.environ["GENERATION_MODEL"] = original
+        get_settings.cache_clear()

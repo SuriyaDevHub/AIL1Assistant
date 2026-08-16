@@ -1,13 +1,47 @@
 :root {
-  --bg: #0f1420;
-  --panel: #171e2e;
-  --border: #2a3346;
-  --text: #e6e9ef;
-  --muted: #8b93a7;
-  --accent: #4f8cff;
-  --green: #35c07a;
-  --red: #e0546a;
-  --amber: #e0a83f;
+  /* Light, professional theme (dataviz skill reference palette: chart
+     surface/page-plane/ink roles, re-stepped and re-validated for this
+     surface with scripts/validate_palette.js - not a flip of the old dark
+     values). */
+  --bg: #f9f9f7;
+  --panel: #fcfcfb;
+  --border: #e1e0d9;
+  --text: #0b0b0b;
+  --muted: #52514e;
+  --accent: #1c5cab;
+  /* Fill colors: used as button/badge backgrounds paired with their own
+     dark text, not as text-on-panel - see the *-ink variants below for
+     that job. Values are the dataviz skill's categorical slots
+     (green/red/yellow), chosen so they pass CVD + lightness/chroma checks
+     on this surface (validate_palette.js, WARN-only on raw contrast, which
+     is expected and mitigated by pairing with dark text/icons). */
+  --green: #1baf7a;
+  --red: #e34948;
+  --amber: #eda100;
+  /* Ink variants: darker steps of the same hues, for text (.warn/.error)
+     directly on the panel/bg surface, where WCAG text contrast (>=4.5:1)
+     actually matters. */
+  --green-ink: #006300;
+  --red-ink: #b3261e;
+  --amber-ink: #8a5a00;
+  /* Status palette (dataviz skill: "status is fixed - a small reserved
+     scale, never themed, always icon/label paired, not the categorical
+     ramp"). Mode-invariant by design - same hex in light and dark.
+     --status-neutral is this app's own addition for "in progress"
+     incidents, which aren't part of the good/warning/critical scale. */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-critical: #d03b3b;
+  --status-neutral: #5b6478;
+  /* Ordinal ramp (confidence buckets, low->high) - steps 250-650 from the
+     dataviz skill's sequential blue hue. Re-validated with --ordinal
+     against this light --panel surface (previous dark-mode steps 200-600
+     were too light for a white surface). */
+  --seq-1: #86b6ef;
+  --seq-2: #5598e7;
+  --seq-3: #2a78d6;
+  --seq-4: #1c5cab;
+  --seq-5: #104281;
   font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -32,12 +66,14 @@ a {
   padding: 0.75rem 1.5rem;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(11, 11, 11, 0.05);
 }
 
 .brand {
   font-weight: 700;
   text-decoration: none;
   font-size: 1.1rem;
+  color: var(--text);
 }
 
 .app-main {
@@ -53,6 +89,10 @@ a {
 table.incident-table {
   width: 100%;
   border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .incident-table th,
@@ -60,6 +100,12 @@ table.incident-table {
   text-align: left;
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
+}
+
+.incident-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.85rem;
 }
 
 .badge {
@@ -72,6 +118,14 @@ table.incident-table {
 
 .status-awaiting_review {
   background: var(--amber);
+  color: #1a1300;
+}
+
+.status-submitted {
+  /* Escalated, Jira ticket open - same amber "still needs action" coding
+     as PipelineView's stage-current, so the badge and the stage strip
+     agree at a glance. */
+  background: var(--status-warning);
   color: #1a1300;
 }
 
@@ -104,6 +158,7 @@ section {
   border-radius: 8px;
   padding: 1rem 1.25rem;
   margin-bottom: 1rem;
+  box-shadow: 0 1px 2px rgba(11, 11, 11, 0.04);
 }
 
 .meta-grid {
@@ -139,11 +194,27 @@ section {
 
 .confidence .warn,
 .warn {
-  color: var(--amber);
+  color: var(--amber-ink);
 }
 
 .error {
-  color: var(--red);
+  color: var(--red-ink);
+}
+
+.generic-checklist {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1.25rem 0.75rem 2rem;
+  margin: 0 0 1rem;
+}
+
+.generic-checklist li {
+  margin-bottom: 0.4rem;
+}
+
+.generic-checklist li:last-child {
+  margin-bottom: 0;
 }
 
 .review-form {
@@ -169,11 +240,16 @@ section {
 
 button {
   border: 1px solid var(--border);
-  background: var(--border);
+  background: var(--panel);
   color: var(--text);
   border-radius: 6px;
   padding: 0.5rem 0.9rem;
   cursor: pointer;
+  box-shadow: 0 1px 2px rgba(11, 11, 11, 0.04);
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
 }
 
 button.approve {
@@ -192,6 +268,42 @@ button.rerun {
   background: var(--amber);
   color: #1a1300;
   border-color: var(--amber);
+}
+
+/* De-emphasized relative to .approve - a secondary action, not an equal
+   alternative (GenieBot L1 Enhancement Plan, "reduce reflexive escalation
+   without gating it"). Only used when there's a real fix to try first;
+   the no-alternative case keeps the normal .rerun styling. */
+button.escalate-secondary {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0.4rem 0.75rem;
+  box-shadow: none;
+}
+
+button.escalate-secondary:hover:not(:disabled) {
+  color: var(--amber-ink);
+  border-color: var(--amber-ink);
+}
+
+button.link-button {
+  border: none;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+  font-size: inherit;
+}
+
+.escalate-confirm {
+  background: #fff8e8;
+  border: 1px solid var(--status-warning);
+  border-radius: 6px;
+  padding: 0.6rem 0.85rem;
+  margin: 0;
 }
 
 button:disabled {
@@ -218,4 +330,228 @@ button:disabled {
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+}
+
+.chip {
+  background: var(--border);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.ticket-description {
+  white-space: pre-wrap;
+  font-family: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  margin: 0;
+}
+
+.nav-links {
+  display: flex;
+  gap: 1rem;
+  margin-right: auto;
+  margin-left: 1.5rem;
+}
+
+.nav-links a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.nav-links a.active {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.stat-tile {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  box-shadow: 0 1px 2px rgba(11, 11, 11, 0.04);
+}
+
+.stat-tile-value {
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+
+.stat-tile-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 0.2rem;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.chart-card svg {
+  display: block;
+  margin-top: 0.5rem;
+}
+
+.recent-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.recent-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.recent-list .muted {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
+/* Jenkins-style pipeline/stage strip (components/PipelineView.tsx) - the
+   incident's real, timestamped state history from the audit ledger. */
+.pipeline-view {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  min-width: 6rem;
+  text-align: center;
+  border: 1px solid transparent;
+}
+
+.stage-label {
+  font-weight: 600;
+}
+
+.stage-duration {
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
+
+.stage-done {
+  background: var(--status-neutral);
+  color: #ffffff;
+}
+
+.stage-good {
+  background: var(--status-good);
+  color: #ffffff;
+}
+
+.stage-critical {
+  background: var(--status-critical);
+  color: #ffffff;
+}
+
+.stage-current {
+  background: var(--status-warning);
+  color: #1a1300;
+}
+
+.stage-running {
+  background: var(--panel);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.stage-pulse {
+  animation: stage-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes stage-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.submitted-note {
+  background: #fff8e8;
+  border: 1px solid var(--status-warning);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.submitted-note button {
+  margin-left: 0.5rem;
+}
+
+/* Precedent banner (components/PrecedentBanner.tsx) - known-issue info
+   surfaced to the end user before they decide resolved-vs-escalate. */
+.precedent-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.precedent-card {
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  border: 1px solid transparent;
+}
+
+.precedent-card p {
+  margin: 0.35rem 0 0;
+}
+
+.precedent-card-resolved {
+  background: #eefaf1;
+  border-color: var(--status-good);
+}
+
+.precedent-card-open {
+  background: #eef4fc;
+  border-color: var(--accent);
+}
+
+.precedent-meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.precedent-caveat {
+  color: var(--amber-ink);
+  font-size: 0.85rem;
 }

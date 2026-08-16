@@ -24,10 +24,9 @@ which are process/governance activities outside this repo's scope.
 - **In-memory backends don't survive process restarts**: `MemoryQueue` and
   `InMemoryVectorStore` are explicitly local/dev conveniences. Using them
   in anything resembling production would silently lose in-flight work on
-  a crash or deploy. `docker-compose.yml` already uses the durable
-  backends (pgvector) where it matters; `QUEUE_BACKEND` defaults to
-  `memory` even there - flip to `sqs` before anything beyond local
-  demoing.
+  a crash or deploy. `QUEUE_BACKEND` defaults to `memory` even when
+  `VECTOR_STORE_BACKEND=pgvector` is set against a real Postgres - flip
+  to `sqs` before anything beyond local demoing.
 - **Single moderation stub**: `guardrails/output_guardrails.py::moderation_flagged`
   is a minimal keyword blocklist, explicitly not a real content-moderation
   service. Treat the "Moderation" guardrail as unimplemented for

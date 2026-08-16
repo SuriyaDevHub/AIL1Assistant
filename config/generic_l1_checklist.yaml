@@ -1,0 +1,43 @@
+# Generic L1 troubleshooting checklist - GenieBot L1 Enhancement Plan
+# ("A basic L1 attempt for issues with no precedent"). Shown to the end
+# user only when the diagnostic agent has genuinely nothing precedented to
+# offer (resolution_type "escalate" with insufficient_information true) -
+# a small, ops-curated, non-model-generated set of safe first steps, so
+# every issue gets a fair attempt before escalation even when the
+# knowledge base has no matching history yet. Editable here (or via
+# PUT /admin/config) without a code change or a model call involved.
+version: 1
+
+default:
+  - "Retry the job once - some failures are transient."
+  - "Check the platform status page for ongoing incidents or maintenance."
+  - "Confirm no recent configuration, credential, or code changes were made for this bot."
+
+categories:
+  CONNECTIVITY:
+    - "Check the platform status page for the target host or service."
+    - "Confirm no recent network or firewall changes affect this bot."
+    - "Retry the job once connectivity is confirmed restored."
+  AUTH_EXPIRED:
+    - "Confirm the service account's credentials or token haven't expired or been rotated."
+    - "Manually trigger a token refresh if one is available for this bot."
+    - "Retry the job once a valid token is confirmed."
+  DATA_VALIDATION:
+    - "Pull the exact rejected row or field from the evidence and confirm what's wrong."
+    - "Check whether the upstream source changed its file format recently."
+    - "Do not retry against the same file if the format itself changed - escalate instead."
+  RESOURCE_EXHAUSTION:
+    - "Check disk, memory, and connection-pool usage on the host running this bot."
+    - "Retry once resources are confirmed available."
+  DEPENDENCY_UNAVAILABLE:
+    - "Confirm the downstream service or file share is reachable and healthy."
+    - "Retry once the dependency is confirmed available."
+  SCHEDULING_CONFLICT:
+    - "Check for another run of this same job still in progress or holding a stale lock."
+    - "Retry once any conflicting run has completed."
+  CONFIG_ERROR:
+    - "Review this run's configuration values against the documented expected values."
+    - "Retry after correcting any missing or incorrect configuration."
+  UNKNOWN:
+    - "Retry the job once - some failures are transient."
+    - "Check the platform status page for ongoing incidents."

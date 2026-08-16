@@ -1,6 +1,6 @@
 version: 1
 agent: log_parser
-model: gpt-5.1
+model: claude-sonnet-5
 temperature: 0.0
 max_output_tokens: 1500
 

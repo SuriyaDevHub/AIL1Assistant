@@ -1,7 +1,32 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { IncidentDetail as IncidentDetailType, getIncident } from "../api/client";
+import {
+  IncidentDetail as IncidentDetailType,
+  JiraTicketDetail,
+  getIncident,
+  getJiraTicket,
+  simulateJiraClosure,
+} from "../api/client";
+import PipelineView from "../components/PipelineView";
+import PrecedentBanner from "../components/PrecedentBanner";
 import ReviewPanel from "../components/ReviewPanel";
+import { usePolling } from "../hooks/usePolling";
+
+const POLL_INTERVAL_MS = 4000;
+const TERMINAL_STATUSES = new Set(["CLOSED", "MANUAL_FALLBACK"]);
+
+const OUTCOME_LABELS: Record<string, string> = {
+  resolved: "Resolved (L1 fix confirmed)",
+  escalated: "Escalated to L2",
+  approve: "Approved",
+  reject: "Rejected",
+  approve_rerun: "Controlled rerun approved",
+};
+
+function _outcomeLabel(decision: string | null): string {
+  if (!decision) return "";
+  return OUTCOME_LABELS[decision] ?? decision;
+}
 
 export default function IncidentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -14,6 +39,38 @@ export default function IncidentDetail() {
   }, [id]);
 
   useEffect(() => reload(), [reload]);
+
+  const [jiraTicket, setJiraTicket] = useState<JiraTicketDetail | null>(null);
+  const [jiraError, setJiraError] = useState(false);
+  const jiraKey = incident?.jira_key ?? null;
+  useEffect(() => {
+    if (!id || !jiraKey) {
+      setJiraTicket(null);
+      return;
+    }
+    setJiraError(false);
+    getJiraTicket(id)
+      .then(setJiraTicket)
+      .catch(() => setJiraError(true));
+  }, [id, jiraKey]);
+
+  // Live updates while the pipeline is still working the incident (a real
+  // model call per agent step means this can take several real seconds) -
+  // stops once it reaches a terminal state, since nothing left will change.
+  const isTerminal = incident ? TERMINAL_STATUSES.has(incident.status) : false;
+  usePolling(reload, POLL_INTERVAL_MS, !isTerminal);
+
+  const [closing, setClosing] = useState(false);
+  const handleSimulateClosure = useCallback(async () => {
+    if (!id) return;
+    setClosing(true);
+    try {
+      await simulateJiraClosure(id);
+      reload();
+    } finally {
+      setClosing(false);
+    }
+  }, [id, reload]);
 
   if (error) return <p className="error">{error}</p>;
   if (!incident) return <p>Loading...</p>;
@@ -28,6 +85,19 @@ export default function IncidentDetail() {
         </h2>
         <span className={`badge status-${incident.status.toLowerCase()}`}>{incident.status}</span>
       </div>
+
+      <PipelineView incidentId={incident.incident_id} isTerminal={isTerminal} />
+
+      {incident.status === "SUBMITTED" && incident.jira_key && (
+        <p className="submitted-note">
+          Escalated to L2 - ticket <strong>{incident.jira_key}</strong> is open. This incident stays open
+          until the ticket closes.{" "}
+          <button type="button" onClick={handleSimulateClosure} disabled={closing}>
+            {closing ? "Closing..." : "Simulate L2 closing this ticket"}
+          </button>
+        </p>
+      )}
+
       <dl className="meta-grid">
         <dt>Incident</dt>
         <dd className="mono">{incident.incident_id}</dd>
@@ -122,15 +192,66 @@ export default function IncidentDetail() {
         )}
       </section>
 
+      {jiraKey && (
+        <section>
+          <h3>Jira ticket</h3>
+          {jiraTicket ? (
+            <>
+              <dl className="meta-grid">
+                <dt>Key</dt>
+                <dd className="mono">{jiraTicket.key}</dd>
+                <dt>Status</dt>
+                <dd>{jiraTicket.status}</dd>
+                <dt>Summary</dt>
+                <dd>{jiraTicket.summary}</dd>
+              </dl>
+              {jiraTicket.labels.length > 0 && (
+                <p className="chips">
+                  {jiraTicket.labels.map((label) => (
+                    <span key={label} className="chip">
+                      {label}
+                    </span>
+                  ))}
+                </p>
+              )}
+              <h4>Description</h4>
+              <pre className="ticket-description">{jiraTicket.description}</pre>
+              {jiraTicket.comments.length > 0 && (
+                <>
+                  <h4>Comments</h4>
+                  <ul>
+                    {jiraTicket.comments.map((comment, i) => (
+                      <li key={i}>{comment}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </>
+          ) : jiraError ? (
+            <p className="empty">Ticket details unavailable.</p>
+          ) : (
+            <p className="empty">Loading ticket...</p>
+          )}
+        </section>
+      )}
+
+      <PrecedentBanner incidentId={incident.incident_id} errorSignatureId={incident.error_signature_id} />
+
       {incident.status === "AWAITING_REVIEW" && (
-        <ReviewPanel incidentId={incident.incident_id} onDecided={reload} />
+        <ReviewPanel
+          incidentId={incident.incident_id}
+          resolutionType={diagnosis?.resolution_type}
+          genericL1Checklist={incident.generic_l1_checklist}
+          errorSignatureId={incident.error_signature_id}
+          onDecided={reload}
+        />
       )}
 
       {incident.reviewer_id && (
         <section>
-          <h3>Review</h3>
+          <h3>Outcome</h3>
           <p>
-            {incident.decision} by {incident.reviewer_id}
+            {_outcomeLabel(incident.decision)} by {incident.reviewer_id}
             {incident.reviewer_comment && <> - "{incident.reviewer_comment}"</>}
           </p>
         </section>

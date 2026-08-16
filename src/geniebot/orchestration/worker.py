@@ -15,9 +15,8 @@ import logging
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from geniebot.audit import ledger
 from geniebot.db.models import Incident
-from geniebot.ingestion.incident_factory import create_incident_if_failure
+from geniebot.ingestion.incident_factory import ingest_storage_event
 from geniebot.ingestion.s3_listener import StorageEventSource
 from geniebot.kb.factory import get_vector_store
 from geniebot.llm.client import LLMClient
@@ -41,18 +40,8 @@ async def run_ingestion_loop(
 ) -> None:
     async for event in event_source.watch(poll_interval=poll_interval):
         try:
-            raw_text = await event_source.read_object(event.key)
             async with session_factory() as session:
-                incident = await create_incident_if_failure(session, event, raw_text)
-                if incident is not None:
-                    await queue.enqueue({"incident_id": incident.incident_id})
-                    await ledger.record(
-                        session,
-                        incident_id=incident.incident_id,
-                        event_type="INGESTED",
-                        payload={"bucket": event.bucket, "key": event.key, "size": event.size},
-                    )
-                    await session.commit()
+                await ingest_storage_event(event, event_source=event_source, queue=queue, session=session)
         except Exception:
             logger.exception("ingestion failed for key=%s", event.key)
 

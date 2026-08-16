@@ -69,18 +69,6 @@ containing a recognisable exception (see `ingestion/incident_factory.py`
 for the log-header/key convention) and watch it become an incident via
 `GET /incidents`.
 
-### Full stack via Docker Compose
-
-```bash
-docker compose up --build
-```
-
-Brings up Postgres+pgvector, the API (`:8000`), the worker, MailHog
-(`:8025` web UI), and the review UI (`:5173`). The API's startup lifespan
-creates tables automatically in this (non-production) configuration - see
-[Production cutover checklist](#production-cutover-checklist) for why that
-path is disabled in real production.
-
 ### Review UI
 
 ```bash

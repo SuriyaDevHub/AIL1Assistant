@@ -55,6 +55,13 @@ class JiraClient(ABC):
     @abstractmethod
     async def get_issue(self, issue_key: str) -> JiraIssue | None: ...
 
+    @abstractmethod
+    async def close_issue(self, issue_key: str, *, status: str = "Done") -> None:
+        """Transitions the issue to a closed/done state. Used when GenieBot
+        itself confirms resolution (end user reports the L1 fix worked) -
+        there is no external L2 action to wait for, so the ticket is closed
+        immediately rather than left for a human to transition."""
+
 
 class MockJiraServer(JiraClient):
     def __init__(self, *, project_key: str = "GENIE", start_seq: int = 2000):
@@ -98,9 +105,16 @@ class MockJiraServer(JiraClient):
     async def get_issue(self, issue_key: str) -> JiraIssue | None:
         return self._issues.get(issue_key)
 
-    def close_issue(self, issue_key: str) -> None:
-        """Test/demo helper - simulates a support engineer closing the
-        ticket, which the feedback loop's webhook handler reacts to."""
+    async def close_issue(self, issue_key: str, *, status: str = "Done") -> None:
+        if issue_key in self._issues:
+            self._issues[issue_key].status = status
+
+    def simulate_l2_closure(self, issue_key: str) -> None:
+        """Test/demo helper - simulates an L2 support engineer closing the
+        ticket in real Jira, which the feedback loop's webhook handler
+        (`/incidents/webhooks/jira-closure`) reacts to. Distinct from
+        `close_issue`, which is GenieBot itself closing a ticket it just
+        confirmed resolved."""
         if issue_key in self._issues:
             self._issues[issue_key].status = "Closed"
 
@@ -188,3 +202,23 @@ class RealJiraClient(JiraClient):
             status=body["fields"]["status"]["name"],
             labels=body["fields"].get("labels", []),
         )
+
+    async def close_issue(self, issue_key: str, *, status: str = "Done") -> None:
+        """Jira workflows are project-specific, so the transition to `status`
+        isn't a fixed ID - list the issue's available transitions and match
+        by name. Raises if no matching transition exists (fail loud rather
+        than silently leaving the ticket open, per doc 1.4 "fail closed")."""
+        resp = await self._http.get(f"{self._base_url}/rest/api/2/issue/{issue_key}/transitions")
+        resp.raise_for_status()
+        transitions = resp.json().get("transitions", [])
+        match = next((t for t in transitions if t["name"].lower() == status.lower()), None)
+        if match is None:
+            available = [t["name"] for t in transitions]
+            raise ValueError(
+                f"no {status!r} transition available on {issue_key} (available: {available})"
+            )
+        resp = await self._http.post(
+            f"{self._base_url}/rest/api/2/issue/{issue_key}/transitions",
+            json={"transition": {"id": match["id"]}},
+        )
+        resp.raise_for_status()
