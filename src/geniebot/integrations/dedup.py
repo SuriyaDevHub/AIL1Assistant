@@ -22,7 +22,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from geniebot.db.models import Incident
+from geniebot.db.models import Incident, ReviewDecision
 
 
 def compute_error_signature_id(*, exception_type: str, failing_module: str, bot_id: str) -> str:
@@ -36,6 +36,14 @@ class DedupResult:
     matched_incident_id: str | None = None
     matched_jira_key: str | None = None
     basis: str | None = None  # "exact_match" | "fuzzy_match" | None
+    matched_was_resolved: bool = False
+    """True when the matched precedent's own decision was RESOLVED - a
+    human already confirmed the L1 fix worked for that occurrence. Callers
+    (integrations/integration_agent.py) use this to decide whether reusing
+    that ticket still makes sense: fine for another self-resolution or for
+    an escalation matching a still-open ticket, but not for an escalation
+    matching a ticket someone already marked fixed - that's a recurrence,
+    not a duplicate of ongoing work, and gets a fresh ticket instead."""
 
 
 async def _recent_linked_incidents(
@@ -73,7 +81,10 @@ async def check_duplicate(
 
     for candidate in candidates:
         if candidate.error_signature_id == signature_id:
-            return DedupResult(True, candidate.incident_id, candidate.jira_key, "exact_match")
+            return DedupResult(
+                True, candidate.incident_id, candidate.jira_key, "exact_match",
+                matched_was_resolved=candidate.decision == ReviewDecision.RESOLVED,
+            )
 
     summary = (incident.template_payload or {}).get("summary", "") or (incident.diagnosis or {}).get(
         "root_cause", ""
@@ -87,6 +98,9 @@ async def check_duplicate(
                 continue
             ratio = difflib.SequenceMatcher(None, summary.lower(), candidate_summary.lower()).ratio()
             if ratio >= fuzzy_threshold:
-                return DedupResult(True, candidate.incident_id, candidate.jira_key, "fuzzy_match")
+                return DedupResult(
+                    True, candidate.incident_id, candidate.jira_key, "fuzzy_match",
+                    matched_was_resolved=candidate.decision == ReviewDecision.RESOLVED,
+                )
 
     return DedupResult(False)

@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from geniebot.db.models import Environment, Incident
+from geniebot.db.models import Environment, Incident, ReviewDecision
 from geniebot.integrations.dedup import compute_error_signature_id
 from geniebot.integrations.integration_agent import submit_incident
 from geniebot.integrations.jira_client import MockJiraServer
@@ -147,3 +147,112 @@ async def test_resolution_confirmed_does_not_close_shared_duplicate_ticket(sessi
     issue = await jira.get_issue(existing_key)
     assert issue.status != "Done"
     assert any("resolved by the end user" in c for c in issue.comments)
+
+
+@pytest.mark.asyncio
+async def test_escalation_matching_a_fixed_precedent_gets_a_new_ticket_tagged_to_it(session):
+    """If a prior occurrence of this exact issue was already confirmed
+    fixed, and this one is being escalated anyway (not self-resolved), the
+    earlier fix evidently didn't hold - a fresh ticket for L2 beats a
+    comment on a ticket nobody's watching anymore, but it should still
+    reference the old one for history."""
+    jira = MockJiraServer()
+    fixed_key = await jira.create_issue(project_key="GENIE", summary="original fix", description="d")
+    await jira.close_issue(fixed_key, status="Done")
+
+    signature_id = compute_error_signature_id(
+        exception_type="ConnectionError", failing_module="payments/loader.py", bot_id="payments-loader"
+    )
+    previously_fixed = _submitted_incident(
+        job_run_id="run-0", jira_key=fixed_key, error_signature_id=signature_id,
+        decision=ReviewDecision.RESOLVED, status=IncidentStatus.CLOSED,
+    )
+    session.add(previously_fixed)
+    await session.commit()
+
+    incident = _submitted_incident(job_run_id="run-0")  # same signature -> exact_match dedup
+    session.add(incident)
+    await session.commit()
+
+    await submit_incident(
+        session, incident, jira_client=jira, mail_client=MockMailClient(),
+        dedup_window_hours=72, dedup_fuzzy_threshold=0.85, support_mailbox="support@bank.example",
+        resolution_confirmed=False,
+    )
+
+    assert incident.jira_key is not None
+    assert incident.jira_key != fixed_key
+
+    new_issue = await jira.get_issue(incident.jira_key)
+    assert fixed_key in new_issue.description
+    assert f"recurrence-of-{fixed_key}" in new_issue.labels
+
+    old_issue = await jira.get_issue(fixed_key)
+    assert old_issue.status == "Done"  # untouched
+
+
+@pytest.mark.asyncio
+async def test_escalation_matching_a_still_open_precedent_still_links(session):
+    """The recurrence case above is specifically about a precedent someone
+    already marked fixed - a precedent that's simply still open (escalated,
+    not yet resolved either way) keeps the existing dedup behavior: link to
+    it rather than opening a second ticket for the same ongoing issue."""
+    jira = MockJiraServer()
+    open_key = await jira.create_issue(project_key="GENIE", summary="still open escalation", description="d")
+
+    signature_id = compute_error_signature_id(
+        exception_type="ConnectionError", failing_module="payments/loader.py", bot_id="payments-loader"
+    )
+    still_open = _submitted_incident(
+        job_run_id="run-0", jira_key=open_key, error_signature_id=signature_id,
+        decision=ReviewDecision.ESCALATED,
+    )
+    session.add(still_open)
+    await session.commit()
+
+    incident = _submitted_incident(job_run_id="run-0")
+    session.add(incident)
+    await session.commit()
+
+    await submit_incident(
+        session, incident, jira_client=jira, mail_client=MockMailClient(),
+        dedup_window_hours=72, dedup_fuzzy_threshold=0.85, support_mailbox="support@bank.example",
+        resolution_confirmed=False,
+    )
+
+    assert incident.jira_key == open_key
+    issue = await jira.get_issue(open_key)
+    assert any("Linked duplicate incident" in c for c in issue.comments)
+
+
+@pytest.mark.asyncio
+async def test_self_resolve_matching_a_fixed_precedent_still_links(session):
+    """Recurrence-detection only kicks in for an escalation matching a
+    fixed precedent (the user's report contradicts "this is fixed"). Two
+    self-resolutions of the same signature is not a contradiction - still
+    links/comments as before."""
+    jira = MockJiraServer()
+    fixed_key = await jira.create_issue(project_key="GENIE", summary="original fix", description="d")
+    await jira.close_issue(fixed_key, status="Done")
+
+    signature_id = compute_error_signature_id(
+        exception_type="ConnectionError", failing_module="payments/loader.py", bot_id="payments-loader"
+    )
+    previously_fixed = _submitted_incident(
+        job_run_id="run-0", jira_key=fixed_key, error_signature_id=signature_id,
+        decision=ReviewDecision.RESOLVED, status=IncidentStatus.CLOSED,
+    )
+    session.add(previously_fixed)
+    await session.commit()
+
+    incident = _submitted_incident(job_run_id="run-0")
+    session.add(incident)
+    await session.commit()
+
+    await submit_incident(
+        session, incident, jira_client=jira, mail_client=MockMailClient(),
+        dedup_window_hours=72, dedup_fuzzy_threshold=0.85, support_mailbox="support@bank.example",
+        resolution_confirmed=True,
+    )
+
+    assert incident.jira_key == fixed_key

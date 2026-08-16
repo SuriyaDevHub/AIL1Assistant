@@ -57,7 +57,12 @@ def _build_log_excerpt(incident: Incident) -> str:
 
 
 def _build_email_body(
-    incident: Incident, template: dict, dedup_basis: str | None, *, resolution_confirmed: bool
+    incident: Incident,
+    template: dict,
+    dedup_basis: str | None,
+    *,
+    resolution_confirmed: bool,
+    recurrence_of: str | None = None,
 ) -> str:
     headline = (
         "Incident {id} was resolved by the end user applying the L1 fix and has been closed."
@@ -74,7 +79,9 @@ def _build_email_body(
     ]
     if incident.reviewer_comment:
         lines.append(f"\nComment: {incident.reviewer_comment}")
-    if dedup_basis:
+    if recurrence_of:
+        lines.append(f"\n(This issue was previously confirmed fixed in {recurrence_of} - it has recurred.)")
+    elif dedup_basis:
         lines.append(f"\n(Linked to an existing ticket - dedup basis: {dedup_basis})")
     return "\n".join(lines)
 
@@ -100,6 +107,20 @@ async def submit_incident(
     dedup_result = await check_duplicate(
         session, incident, window_hours=dedup_window_hours, fuzzy_threshold=dedup_fuzzy_threshold
     )
+
+    # A precedent someone already marked fixed isn't "ongoing work" to pile
+    # onto - if it's recurring anyway (this report is an escalation, not
+    # another self-resolution), that's a signal the earlier fix didn't
+    # hold, and deserves L2's fresh attention rather than a comment on a
+    # ticket nobody's watching anymore. Still tagged back to that ticket
+    # for history, just not reused as the destination.
+    recurrence_of = (
+        dedup_result.matched_jira_key
+        if dedup_result.is_duplicate and dedup_result.matched_was_resolved and not resolution_confirmed
+        else None
+    )
+    links_to_matched_ticket = dedup_result.is_duplicate and dedup_result.matched_jira_key and not recurrence_of
+
     await ledger.record(
         session,
         incident_id=incident.incident_id,
@@ -109,12 +130,14 @@ async def submit_incident(
             "basis": dedup_result.basis,
             "matched_incident_id": dedup_result.matched_incident_id,
             "matched_jira_key": dedup_result.matched_jira_key,
+            "matched_was_resolved": dedup_result.matched_was_resolved,
+            "treated_as_recurrence_new_ticket": recurrence_of is not None,
         },
     )
 
     template = incident.template_payload or {}
 
-    if dedup_result.is_duplicate and dedup_result.matched_jira_key:
+    if links_to_matched_ticket:
         incident.jira_key = dedup_result.matched_jira_key
         comment = (
             f"Linked duplicate incident {incident.incident_id} "
@@ -132,11 +155,20 @@ async def submit_incident(
         summary = template.get("summary") or (incident.diagnosis or {}).get("root_cause") or (
             f"Genie Bot failure: {incident.bot_id}/{incident.job_run_id}"
         )
+        description = _build_description(incident, template, resolution_confirmed=resolution_confirmed)
+        labels = [l for l in [incident.error_signature_id, template.get("error_category")] if l]
+        if recurrence_of:
+            description += (
+                f"\n\nThis exact issue was previously confirmed fixed in {recurrence_of}, but has "
+                f"recurred - the earlier fix may not have held, or this is a regression. See that "
+                f"ticket for the prior root cause and resolution."
+            )
+            labels.append(f"recurrence-of-{recurrence_of}")
         issue_key = await jira_client.create_issue(
             project_key=settings.jira_project_key,
             summary=summary[:250],
-            description=_build_description(incident, template, resolution_confirmed=resolution_confirmed),
-            labels=[l for l in [incident.error_signature_id, template.get("error_category")] if l],
+            description=description,
+            labels=labels,
             attachments=[("execution.log", _build_log_excerpt(incident).encode("utf-8"))],
         )
         incident.jira_key = issue_key
@@ -149,7 +181,10 @@ async def submit_incident(
     await mail_client.send(
         to=support_mailbox,
         subject=f"[Genie Bot] {incident.jira_key}: {incident.bot_id} / {incident.job_run_id}",
-        body=_build_email_body(incident, template, dedup_result.basis, resolution_confirmed=resolution_confirmed),
+        body=_build_email_body(
+            incident, template, dedup_result.basis,
+            resolution_confirmed=resolution_confirmed, recurrence_of=recurrence_of,
+        ),
     )
 
     # resolution_confirmed=True: GenieBot just closed the ticket itself
