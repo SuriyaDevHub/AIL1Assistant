@@ -1,0 +1,124 @@
+# Template - replace <IMAGE_REGISTRY>/<IMAGE_TAG> and <NAMESPACE> before
+# applying. Two Deployments sharing one image (see Dockerfile): api serves
+# HTTP traffic, worker runs the ingestion+processing loops
+# (geniebot.worker_main). Scale them independently via the HPA
+# (hpa.yaml) or manual replica counts.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geniebot-api
+  namespace: <NAMESPACE>
+  labels:
+    app: geniebot
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: geniebot
+      component: api
+  template:
+    metadata:
+      labels:
+        app: geniebot
+        component: api
+    spec:
+      containers:
+        - name: api
+          image: <IMAGE_REGISTRY>/geniebot:<IMAGE_TAG>
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: geniebot-config
+            - secretRef:
+                name: geniebot-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geniebot-worker
+  namespace: <NAMESPACE>
+  labels:
+    app: geniebot
+    component: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: geniebot
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: geniebot
+        component: worker
+    spec:
+      containers:
+        - name: worker
+          image: <IMAGE_REGISTRY>/geniebot:<IMAGE_TAG>
+          command: ["python", "-m", "geniebot.worker_main"]
+          envFrom:
+            - configMapRef:
+                name: geniebot-config
+            - secretRef:
+                name: geniebot-secrets
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geniebot-frontend
+  namespace: <NAMESPACE>
+  labels:
+    app: geniebot
+    component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: geniebot
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: geniebot
+        component: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: <IMAGE_REGISTRY>/geniebot-frontend:<IMAGE_TAG>
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "128Mi"

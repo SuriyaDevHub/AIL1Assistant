@@ -1,0 +1,52 @@
+version: 1
+
+input_guardrails:
+  redaction:
+    enabled: true
+    fail_closed_on_error: true
+  data_classification:
+    enabled: true
+    block_above: "restricted"     # public < internal < confidential < restricted
+    fail_closed_on_error: true
+  injection_screening:
+    enabled: true
+    action_on_detection: "neutralise"   # neutralise | route_manual
+    fail_closed_on_error: true
+  payload_capping:
+    enabled: true
+    fail_closed_on_error: true
+
+output_guardrails:
+  grounding_check:
+    enabled: true
+    unresolvable_citation_action: "block"   # block | flag
+  proposal_only:
+    enabled: true
+    action_on_violation: "block"
+  sensitive_data_egress:
+    enabled: true
+    action_on_detection: "redact_and_flag"
+  moderation:
+    enabled: true
+    action_on_violation: "block"
+  budget_ceiling:
+    enabled: true
+  loop_cap:
+    enabled: true
+
+# Rule identifiers used in the audit ledger / observability (doc §6.3).
+# Keep stable once shipped - dashboards and alerting key off these ids.
+rule_ids:
+  - REDACT_CREDENTIAL
+  - REDACT_CONNECTION_STRING
+  - REDACT_ACCOUNT_ID
+  - REDACT_PII
+  - CLASSIFY_BLOCK_THRESHOLD
+  - INJECTION_INSTRUCTION_LIKE
+  - PAYLOAD_TRUNCATED
+  - GROUND_UNRESOLVABLE_CITATION
+  - PROPOSAL_ONLY_VIOLATION
+  - EGRESS_SENSITIVE_DATA
+  - MODERATION_BLOCK
+  - BUDGET_CEILING_BREACH
+  - LOOP_CAP_EXCEEDED

@@ -1,0 +1,14 @@
+[
+  {
+    "error_signature": "ConnectionError could not connect to host db01",
+    "failing_module": "payments/loader.py",
+    "error_category": "CONNECTIVITY",
+    "expected_source_refs": ["GENIE-1042", "SOP-CONNECTIVITY-01", "MAIL-2291", "LOGSAMPLE-ConnectionError-01", "ERR-CAT-ConnectionError"]
+  },
+  {
+    "error_signature": "AuthenticationExpiredError token expired",
+    "failing_module": "auth/session.py",
+    "error_category": "AUTH_EXPIRED",
+    "expected_source_refs": ["GENIE-1077", "SOP-AUTH-01", "MAIL-2340", "LOGSAMPLE-AuthenticationExpiredError-01", "ERR-CAT-AuthenticationExpiredError"]
+  }
+]

@@ -1,0 +1,221 @@
+:root {
+  --bg: #0f1420;
+  --panel: #171e2e;
+  --border: #2a3346;
+  --text: #e6e9ef;
+  --muted: #8b93a7;
+  --accent: #4f8cff;
+  --green: #35c07a;
+  --red: #e0546a;
+  --amber: #e0a83f;
+  font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+a {
+  color: var(--accent);
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 1.1rem;
+}
+
+.app-main {
+  padding: 1.5rem;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.toolbar {
+  margin-bottom: 1rem;
+}
+
+table.incident-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.incident-table th,
+.incident-table td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: var(--border);
+}
+
+.status-awaiting_review {
+  background: var(--amber);
+  color: #1a1300;
+}
+
+.status-closed {
+  background: var(--green);
+  color: #04210f;
+}
+
+.status-manual_fallback,
+.status-blocked_by_guardrail,
+.status-unparseable,
+.status-platform_unavailable {
+  background: var(--red);
+  color: #2b0009;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+.empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+section {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+}
+
+.meta-grid dt {
+  color: var(--muted);
+}
+
+.meta-grid dd {
+  margin: 0;
+}
+
+.evidence-list {
+  list-style: none;
+  padding: 0;
+}
+
+.evidence-list li {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.15rem 0;
+}
+
+.line-no {
+  color: var(--muted);
+  min-width: 2rem;
+  text-align: right;
+}
+
+.confidence .warn,
+.warn {
+  color: var(--amber);
+}
+
+.error {
+  color: var(--red);
+}
+
+.review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 480px;
+}
+
+.review-form input,
+.review-form textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+.review-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+button {
+  border: 1px solid var(--border);
+  background: var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+}
+
+button.approve {
+  background: var(--green);
+  color: #04210f;
+  border-color: var(--green);
+}
+
+button.reject {
+  background: var(--red);
+  color: #2b0009;
+  border-color: var(--red);
+}
+
+button.rerun {
+  background: var(--amber);
+  color: #1a1300;
+  border-color: var(--amber);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.token-bar {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.token-bar input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  width: 220px;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}

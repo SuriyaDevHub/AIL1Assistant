@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://geniebot.internal/schemas/l2_escalation_template.json",
+  "title": "L2 Escalation Template",
+  "type": "object",
+  "version": 1,
+  "required": [
+    "incident_id",
+    "bot_id",
+    "job_run_id",
+    "environment",
+    "error_category",
+    "summary",
+    "root_cause",
+    "recommended_action",
+    "evidence_refs",
+    "unknown_fields"
+  ],
+  "properties": {
+    "incident_id": {"type": "string"},
+    "bot_id": {"type": "string"},
+    "job_run_id": {"type": "string"},
+    "environment": {"type": "string", "enum": ["production", "uat", "development"]},
+    "error_category": {"type": "string"},
+    "summary": {"type": "string", "maxLength": 500},
+    "root_cause": {"type": "string"},
+    "recommended_action": {"type": "string"},
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "ref"],
+        "properties": {
+          "type": {"type": "string", "enum": ["log", "kb"]},
+          "ref": {"type": "string"}
+        }
+      }
+    },
+    "log_s3_uri": {"type": "string"},
+    "priority": {"type": "string", "enum": ["P1", "P2", "P3", "P4"]},
+    "unknown_fields": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Names of mandatory fields the Template Generator Agent could not populate from supported evidence; set to an explicit unknown marker rather than guessed."
+    }
+  },
+  "additionalProperties": false
+}

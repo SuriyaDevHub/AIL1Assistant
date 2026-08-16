@@ -1,0 +1,42 @@
+[
+  {
+    "case_id": "GOLD-1",
+    "bot_id": "payments-loader-nightly",
+    "job_run_id": "run-1",
+    "environment": "production",
+    "log_text": "INFO starting batch\nConnectionError: could not connect to host db01 in module payments/loader.py\n",
+    "expected_exception_type": "ConnectionError",
+    "expected_error_category": "CONNECTIVITY",
+    "expect_parseable": true
+  },
+  {
+    "case_id": "GOLD-2",
+    "bot_id": "recon-bot-eod",
+    "job_run_id": "run-2",
+    "environment": "production",
+    "log_text": "INFO starting reconciliation\nAuthenticationExpiredError: token expired in module auth/session.py\n",
+    "expected_exception_type": "AuthenticationExpiredError",
+    "expected_error_category": "AUTH_EXPIRED",
+    "expect_parseable": true
+  },
+  {
+    "case_id": "GOLD-3",
+    "bot_id": "settlement-bot",
+    "job_run_id": "run-3",
+    "environment": "production",
+    "log_text": "INFO calling pricing service\nTimeoutError: read timed out in module pricing/client.py\n",
+    "expected_exception_type": "TimeoutError",
+    "expected_error_category": "CONNECTIVITY",
+    "expect_parseable": true
+  },
+  {
+    "case_id": "GOLD-4",
+    "bot_id": "unknown-bot",
+    "job_run_id": "run-4",
+    "environment": "production",
+    "log_text": "garbled binary noise with no recognisable exception signature at all",
+    "expected_exception_type": null,
+    "expected_error_category": null,
+    "expect_parseable": false
+  }
+]

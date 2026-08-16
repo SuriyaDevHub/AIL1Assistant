@@ -1,0 +1,52 @@
+# Versioned, externalised configuration (doc §8.2). Promoted through
+# environments with the same review as code. Loaded by src/geniebot/settings.py.
+version: 1
+
+confidence:
+  # Below this, the Confidence Gate forces the escalation path (doc §5.4).
+  auto_resolve_min: 0.80
+  # Below this, insufficient_information is treated as effectively true
+  # even if the model didn't set the flag.
+  floor: 0.35
+
+retrieval:
+  top_n: 5
+  min_similarity: 0.55
+  # When similarity scores are within this margin, re-ranking prefers
+  # recent / higher-confidence resolutions (doc §4.4).
+  rerank_margin: 0.03
+
+budget:
+  per_incident_cost_ceiling_usd: 0.50
+  per_incident_token_ceiling: 60000
+  anomalous_cost_multiplier: 5.0   # alert if an incident costs > 5x the running average
+  # Placeholder blended rate (doc doesn't specify internal-platform pricing,
+  # section 13 open item "production prompts larger than ideation" flags
+  # cost as unresolved) - replace with the internal AI platform's real
+  # per-token rate before trusting the cost telemetry in production.
+  cost_per_1k_tokens_usd: 0.01
+
+loop:
+  max_controlled_reruns_per_incident: 2
+
+payload:
+  max_log_chars: 200000
+  max_tokens_per_invocation: 12000
+
+latency:
+  # Open item in the source doc (§13): "to be confirmed with production
+  # support." Placeholders here so alerting has something to compare
+  # against until that number is agreed; treat as provisional.
+  target_p50_seconds: 30
+  target_p99_seconds: 120
+
+dedup:
+  exact_match_window_hours: 72
+  fuzzy_similarity_threshold: 0.85
+
+feedback:
+  # doc 4.5: "recurring patterns trigger SOP draft generation" - how many
+  # closed incidents sharing an error_signature_id within the window
+  # counts as "recurring". Provisional, tune during pilot.
+  sop_min_occurrences: 3
+  sop_window_hours: 720

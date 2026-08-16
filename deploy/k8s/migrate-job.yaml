@@ -1,0 +1,25 @@
+# Run once per deploy, before rolling out geniebot-api/geniebot-worker:
+#   kubectl apply -f migrate-job.yaml && kubectl wait --for=condition=complete job/geniebot-migrate -n <NAMESPACE>
+# Production (GENIEBOT_ENV=production) deliberately skips the
+# create-tables-on-startup convenience path (see main.py lifespan) - schema
+# changes go through this explicit `alembic upgrade head` step instead, so
+# they're reviewed and reversible like any other migration.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: geniebot-migrate
+  namespace: <NAMESPACE>
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: <IMAGE_REGISTRY>/geniebot:<IMAGE_TAG>
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: geniebot-config
+            - secretRef:
+                name: geniebot-secrets

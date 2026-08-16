@@ -1,0 +1,39 @@
+# Error taxonomy (doc §13 open item: "to be finalised and agreed before
+# knowledge base labelling begins"). Seeded with a representative starting
+# set covering common Genie Bot batch-automation failure classes so the
+# pipeline is runnable end to end; revise before real KB labelling begins.
+version: 1
+
+categories:
+  - id: CONNECTIVITY
+    label: "Connectivity / timeout"
+    description: "Upstream system unreachable, connection reset, or timeout"
+    rollout_status: pilot            # pilot | expanded | disabled
+  - id: AUTH_EXPIRED
+    label: "Authentication / token expiry"
+    description: "Expired or invalid credentials, token refresh failure"
+    rollout_status: pilot
+  - id: DATA_VALIDATION
+    label: "Data validation failure"
+    description: "Malformed, missing, or out-of-range input data"
+    rollout_status: disabled
+  - id: RESOURCE_EXHAUSTION
+    label: "Resource exhaustion"
+    description: "Out of memory, disk full, thread/connection pool exhausted"
+    rollout_status: disabled
+  - id: DEPENDENCY_UNAVAILABLE
+    label: "Downstream dependency unavailable"
+    description: "A called service or file share was unavailable"
+    rollout_status: disabled
+  - id: SCHEDULING_CONFLICT
+    label: "Scheduling / concurrency conflict"
+    description: "Overlapping runs, lock contention, stale lock file"
+    rollout_status: disabled
+  - id: CONFIG_ERROR
+    label: "Configuration error"
+    description: "Missing or incorrect configuration value for the run"
+    rollout_status: disabled
+  - id: UNKNOWN
+    label: "Unclassified"
+    description: "Does not match a known category; always escalates"
+    rollout_status: disabled

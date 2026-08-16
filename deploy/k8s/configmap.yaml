@@ -1,0 +1,35 @@
+# Template - fill in <PLACEHOLDER> values for the target cluster/namespace
+# before applying. Non-secret configuration only; see secret.example.yaml
+# for credentials.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: geniebot-config
+  namespace: <NAMESPACE>
+data:
+  GENIEBOT_ENV: "production"
+  VECTOR_STORE_BACKEND: "pgvector"
+  STORAGE_BACKEND: "s3"
+  S3_BUCKET: "<GENIE_BOT_LOGS_BUCKET>"
+  S3_WORKING_PREFIX: "working/"
+  LLM_BACKEND: "internal_platform"
+  INTERNAL_AI_PLATFORM_BASE_URL: "<INTERNAL_AI_PLATFORM_URL>"
+  GENERATION_MODEL: "gpt-5.1"
+  EMBEDDING_MODEL: "text-embedding-small"
+  AUTH_BACKEND: "openam"
+  OPENAM_TOKEN_URL: "<OPENAM_TOKEN_URL>"
+  DSP_TRANSLATE_URL: "<DSP_TRANSLATE_URL>"
+  JWT_JWKS_URL: "<JWT_JWKS_URL>"
+  JWT_AUDIENCE: "geniebot-api"
+  JIRA_BACKEND: "real"
+  JIRA_BASE_URL: "<JIRA_BASE_URL>"
+  JIRA_PROJECT_KEY: "GENIE"
+  MAIL_BACKEND: "smtp"
+  SMTP_HOST: "<SMTP_RELAY_HOST>"
+  SMTP_PORT: "25"
+  GENIE_SUPPORT_MAILBOX: "genie-support@<bank-domain>"
+  QUEUE_BACKEND: "sqs"
+  SQS_QUEUE_URL: "<SQS_QUEUE_URL>"
+  SQS_DLQ_URL: "<SQS_DLQ_URL>"
+  SECRETS_BACKEND: "approved_secrets_manager"
+  SECRETS_MANAGER_ENDPOINT: "<SECRETS_MANAGER_ENDPOINT>"

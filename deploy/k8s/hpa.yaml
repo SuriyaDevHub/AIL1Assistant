@@ -1,0 +1,44 @@
+# Scales the worker on queue-driven load. Requires the metrics-server (CPU)
+# and, for real queue-depth-based scaling, a custom/external metrics
+# adapter wired to the SQS queue depth (doc 10.2 "Queue backlog beyond the
+# agreed depth" alert) - the cpu-only version below is a safe minimal
+# starting point.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: geniebot-worker
+  namespace: <NAMESPACE>
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: geniebot-worker
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: geniebot-api
+  namespace: <NAMESPACE>
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: geniebot-api
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
