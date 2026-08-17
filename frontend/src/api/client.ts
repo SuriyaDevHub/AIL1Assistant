@@ -36,6 +36,20 @@ export function decodeTokenRole(token: string): string | null {
   }
 }
 
+export type DevRole = "end_user" | "l2_support" | "admin";
+
+// POST /auth/dev-token (AUTH_BACKEND=mock only) - validates the requested
+// role against the backend's placeholder user directory rather than just
+// trusting whatever's picked here (api/routers/auth.py). Throws (via
+// request()'s error handling) with the backend's own message on a
+// role/username mismatch - surface that directly, don't reword it.
+export function generateDevToken(
+  username: string,
+  role: DevRole
+): Promise<{ token: string; username: string; role: DevRole }> {
+  return request(`/auth/dev-token`, { method: "POST", body: JSON.stringify({ username, role }) });
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {

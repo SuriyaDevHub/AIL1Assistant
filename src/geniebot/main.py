@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from geniebot import __version__
-from geniebot.api.routers import admin, health, incidents, ingest, kb
+from geniebot.api.routers import admin, auth, health, incidents, ingest, kb
 from geniebot.db.session import get_sessionmaker, init_models
 from geniebot.kb.factory import ensure_vector_store_schema
 from geniebot.observability.logging_config import configure_logging
@@ -49,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(ingest.router, prefix="/ingest", tags=["ingest"])
     app.include_router(kb.router, prefix="/kb", tags=["kb"])
     app.include_router(admin.router, prefix="/admin", tags=["admin"])
+    app.include_router(auth.router, prefix="/auth", tags=["auth"])
     return app
 
 

@@ -27,6 +27,26 @@ from geniebot.settings import get_settings
 _security = HTTPBearer(auto_error=False)
 _ROLES = ("end_user", "l2_support", "admin")
 
+# Placeholder "user directory" backing the dev token generator
+# (POST /auth/dev-token) - stands in for a real identity/role source
+# (OpenAM group membership, an LDAP lookup, a DB table) that would back
+# this in production. AUTH_BACKEND=mock only (api/routers/auth.py gates
+# on that). The point of looking this up at all, rather than trusting
+# whatever role a caller requests, is so even this dev/test affordance
+# models what a real identity provider enforces - a username can't just
+# claim to be admin. Extend for more test identities as needed.
+_DEV_USER_ROLES: dict[str, str] = {
+    "asharma": "end_user",
+    "alice": "end_user",
+    "bob": "end_user",
+    "carol": "l2_support",
+    "admin1": "admin",
+}
+
+
+def lookup_dev_user_role(username: str) -> str | None:
+    return _DEV_USER_ROLES.get(username)
+
 
 def create_dev_token(sub: str, *, role: str = "end_user", expires_in_seconds: int = 3600) -> str:
     """Issues a locally-signed dev JWT. Used by tests and local demo

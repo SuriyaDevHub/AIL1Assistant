@@ -313,7 +313,9 @@ button:disabled {
 
 .token-bar {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .token-bar input {
@@ -323,6 +325,29 @@ button:disabled {
   border-radius: 6px;
   padding: 0.3rem 0.5rem;
   width: 220px;
+}
+
+.token-bar-divider {
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.token-bar input.token-bar-username {
+  width: 130px;
+}
+
+.token-bar select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+}
+
+.token-bar-error {
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .detail-header {
