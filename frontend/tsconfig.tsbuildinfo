@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/api/client.ts","./src/components/pipelineview.tsx","./src/components/precedentbanner.tsx","./src/components/reviewpanel.tsx","./src/components/tokenbar.tsx","./src/hooks/usepolling.ts","./src/pages/dashboard.tsx","./src/pages/incidentdetail.tsx","./src/pages/incidentlist.tsx"],"version":"5.9.3"}

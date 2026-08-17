@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DevRole, generateDevToken, getToken, setToken } from "../api/client";
+import { generateDevToken, getToken, setToken } from "../api/client";
 
 // Dev-only auth affordance - see api/client.ts header comment. In a real
 // deployment this bar is replaced by an OpenAM login redirect. Two ways
@@ -7,16 +7,16 @@ import { DevRole, generateDevToken, getToken, setToken } from "../api/client";
 // the backend's placeholder user directory (POST /auth/dev-token) -
 // the generator validates the picked role against that user, it isn't
 // a free pass to any role.
-export default function TokenBar({ onTokenChange }: { onTokenChange?: (token: string) => void }) {
+export default function TokenBar({ onTokenChange }) {
   const [value, setValue] = useState(getToken());
   const [saved, setSaved] = useState(false);
 
   const [username, setUsername] = useState("");
-  const [role, setRole] = useState<DevRole>("end_user");
+  const [role, setRole] = useState("end_user");
   const [generating, setGenerating] = useState(false);
-  const [genError, setGenError] = useState<string | null>(null);
+  const [genError, setGenError] = useState(null);
 
-  function applyToken(token: string) {
+  function applyToken(token) {
     setValue(token);
     setToken(token);
     setSaved(true);
@@ -62,7 +62,7 @@ export default function TokenBar({ onTokenChange }: { onTokenChange?: (token: st
         }}
         className="token-bar-username"
       />
-      <select value={role} onChange={(e) => setRole(e.target.value as DevRole)}>
+      <select value={role} onChange={(e) => setRole(e.target.value)}>
         <option value="end_user">end_user</option>
         <option value="l2_support">l2_support</option>
         <option value="admin">admin</option>

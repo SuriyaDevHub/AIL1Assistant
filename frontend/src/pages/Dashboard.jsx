@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { IncidentStats, getIncidentStats } from "../api/client";
+import { getIncidentStats } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 
 const POLL_INTERVAL_MS = 4000;
@@ -11,27 +11,27 @@ const CLOSED_KEYS = ["CLOSED"];
 const CONFIDENCE_BUCKET_ORDER = ["0.0-0.2", "0.2-0.4", "0.4-0.6", "0.6-0.8", "0.8-1.0"];
 const CONFIDENCE_COLORS = ["var(--seq-1)", "var(--seq-2)", "var(--seq-3)", "var(--seq-4)", "var(--seq-5)"];
 
-function sumKeys(counts: Record<string, number>, keys: string[]): number {
+function sumKeys(counts, keys) {
   return keys.reduce((total, k) => total + (counts[k] ?? 0), 0);
 }
 
 // Every status not in one of the three named buckets above is still moving
 // through the pipeline (INGESTED, SCREENED, ..., RERUN_APPROVED) - grouped
 // as a single neutral bucket rather than enumerating every transient state.
-function inProgressCount(counts: Record<string, number>): number {
+function inProgressCount(counts) {
   const known = new Set([...AWAITING_KEYS, ...BLOCKED_KEYS, ...CLOSED_KEYS]);
   return Object.entries(counts)
     .filter(([status]) => !known.has(status))
     .reduce((total, [, count]) => total + count, 0);
 }
 
-function formatUsd(value: string): string {
+function formatUsd(value) {
   return `$${Number(value).toFixed(2)}`;
 }
 
 export default function Dashboard() {
-  const [stats, setStats] = useState<IncidentStats | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState(null);
+  const [error, setError] = useState(null);
 
   const load = () => {
     getIncidentStats().then(setStats).catch((e) => setError(String(e)));
@@ -104,7 +104,7 @@ export default function Dashboard() {
   );
 }
 
-function StatTile({ label, value }: { label: string; value: string | number }) {
+function StatTile({ label, value }) {
   return (
     <div className="stat-tile">
       <div className="stat-tile-value">{value}</div>
@@ -113,16 +113,10 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-interface Bar {
-  label: string;
-  count: number;
-  color: string;
-}
-
 // Horizontal bars: status names read as labels, so no separate legend box
 // is needed (dataviz skill: a legend exists for identity readers can't get
 // elsewhere - here every bar already carries its name as a direct label).
-function StatusBarChart({ bars }: { bars: Bar[] }) {
+function StatusBarChart({ bars }) {
   const max = Math.max(1, ...bars.map((b) => b.count));
   const barHeight = 18;
   const rowHeight = 28;
@@ -161,7 +155,7 @@ function StatusBarChart({ bars }: { bars: Bar[] }) {
 // Vertical columns, one hue stepped light->dark across the 5 ordered
 // buckets (dataviz skill: ordinal data - reordering the buckets would
 // change their meaning - takes a single-hue monotone-lightness ramp).
-function ConfidenceHistogram({ buckets }: { buckets: Bar[] }) {
+function ConfidenceHistogram({ buckets }) {
   const max = Math.max(1, ...buckets.map((b) => b.count));
   const width = 340;
   const chartHeight = 120;

@@ -7,17 +7,11 @@ export default function ReviewPanel({
   genericL1Checklist,
   errorSignatureId,
   onDecided,
-}: {
-  incidentId: string;
-  resolutionType?: string;
-  genericL1Checklist?: string[] | null;
-  errorSignatureId?: string | null;
-  onDecided: () => void;
 }) {
   const [submitterId, setSubmitterId] = useState("");
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(null);
   const [confirmingEscalate, setConfirmingEscalate] = useState(false);
 
   // Only fetched to gate the one targeted extra confirm step below (an
@@ -26,7 +20,7 @@ export default function ReviewPanel({
   // banner; this is intentionally not shared state, keeping the two
   // components' concerns independent (GenieBot L1 Enhancement Plan,
   // "reduce reflexive escalation without gating it").
-  const [openPrecedentJiraKey, setOpenPrecedentJiraKey] = useState<string | null>(null);
+  const [openPrecedentJiraKey, setOpenPrecedentJiraKey] = useState(null);
 
   useEffect(() => {
     if (!errorSignatureId) {
@@ -41,7 +35,7 @@ export default function ReviewPanel({
   const hasChecklist = !!genericL1Checklist && genericL1Checklist.length > 0;
   const hasL1Fix = resolutionType === "controlled_rerun" || resolutionType === "guidance" || hasChecklist;
 
-  async function decide(decision: "resolved" | "escalated") {
+  async function decide(decision) {
     if (!submitterId) {
       setError("your name/ID is required");
       return;
@@ -91,7 +85,7 @@ export default function ReviewPanel({
       </p>
       {hasChecklist && (
         <ol className="generic-checklist">
-          {genericL1Checklist!.map((step, i) => (
+          {genericL1Checklist.map((step, i) => (
             <li key={i}>{step}</li>
           ))}
         </ol>

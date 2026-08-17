@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { IncidentListItem, listIncidents } from "../api/client";
+import { listIncidents } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 
 const POLL_INTERVAL_MS = 4000;
@@ -25,12 +25,12 @@ const STATUS_OPTIONS = [
 ];
 
 export default function IncidentList() {
-  const [incidents, setIncidents] = useState<IncidentListItem[]>([]);
+  const [incidents, setIncidents] = useState([]);
   const [status, setStatus] = useState("AWAITING_REVIEW");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(null);
 
-  const fetchIncidents = useCallback((showSpinner: boolean) => {
+  const fetchIncidents = useCallback((showSpinner) => {
     if (showSpinner) setLoading(true);
     listIncidents({ status: status || undefined })
       .then((data) => {

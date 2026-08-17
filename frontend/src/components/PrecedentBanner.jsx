@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { IncidentPrecedent, getIncidentPrecedent } from "../api/client";
+import { getIncidentPrecedent } from "../api/client";
 
 // Surfaces prior incidents sharing this incident's error signature, before
 // the end user decides resolved-vs-escalate - the backend already dedupes
@@ -12,14 +12,8 @@ import { IncidentPrecedent, getIncidentPrecedent } from "../api/client";
 // effect only needs to re-fire once the signature actually exists - keying
 // on incidentId alone would fetch once while it's still null (pre-diagnosis)
 // and never refetch once it's set.
-export default function PrecedentBanner({
-  incidentId,
-  errorSignatureId,
-}: {
-  incidentId: string;
-  errorSignatureId: string | null;
-}) {
-  const [precedent, setPrecedent] = useState<IncidentPrecedent | null>(null);
+export default function PrecedentBanner({ incidentId, errorSignatureId }) {
+  const [precedent, setPrecedent] = useState(null);
 
   useEffect(() => {
     if (!errorSignatureId) {
