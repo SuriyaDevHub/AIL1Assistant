@@ -457,7 +457,7 @@ button:disabled {
   margin-left: auto;
 }
 
-/* Jenkins-style pipeline/stage strip (components/PipelineView.tsx) - the
+/* Jenkins-style pipeline/stage strip (components/PipelineView.jsx) - the
    incident's real, timestamped state history from the audit ledger. */
 .pipeline-view {
   display: flex;
@@ -542,7 +542,7 @@ button:disabled {
   margin-left: 0.5rem;
 }
 
-/* Precedent banner (components/PrecedentBanner.tsx) - known-issue info
+/* Precedent banner (components/PrecedentBanner.jsx) - known-issue info
    surfaced to the end user before they decide resolved-vs-escalate. */
 .precedent-banner {
   display: flex;

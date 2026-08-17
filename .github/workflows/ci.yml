@@ -48,8 +48,5 @@ jobs:
       - name: Install
         run: npm install
 
-      - name: Type check
-        run: npx tsc -b
-
       - name: Build
         run: npm run build

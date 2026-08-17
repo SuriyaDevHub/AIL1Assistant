@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import {
-  IncidentDetail as IncidentDetailType,
-  JiraTicketDetail,
-  getIncident,
-  getJiraTicket,
-  simulateJiraClosure,
-} from "../api/client";
+import { getIncident, getJiraTicket, simulateJiraClosure } from "../api/client";
 import PipelineView from "../components/PipelineView";
 import PrecedentBanner from "../components/PrecedentBanner";
 import ReviewPanel from "../components/ReviewPanel";
@@ -15,7 +9,7 @@ import { usePolling } from "../hooks/usePolling";
 const POLL_INTERVAL_MS = 4000;
 const TERMINAL_STATUSES = new Set(["CLOSED", "MANUAL_FALLBACK"]);
 
-const OUTCOME_LABELS: Record<string, string> = {
+const OUTCOME_LABELS = {
   resolved: "Resolved (L1 fix confirmed)",
   escalated: "Escalated to L2",
   approve: "Approved",
@@ -23,15 +17,15 @@ const OUTCOME_LABELS: Record<string, string> = {
   approve_rerun: "Controlled rerun approved",
 };
 
-function _outcomeLabel(decision: string | null): string {
+function _outcomeLabel(decision) {
   if (!decision) return "";
   return OUTCOME_LABELS[decision] ?? decision;
 }
 
 export default function IncidentDetail() {
-  const { id } = useParams<{ id: string }>();
-  const [incident, setIncident] = useState<IncidentDetailType | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { id } = useParams();
+  const [incident, setIncident] = useState(null);
+  const [error, setError] = useState(null);
 
   const reload = useCallback(() => {
     if (!id) return;
@@ -40,7 +34,7 @@ export default function IncidentDetail() {
 
   useEffect(() => reload(), [reload]);
 
-  const [jiraTicket, setJiraTicket] = useState<JiraTicketDetail | null>(null);
+  const [jiraTicket, setJiraTicket] = useState(null);
   const [jiraError, setJiraError] = useState(false);
   const jiraKey = incident?.jira_key ?? null;
   useEffect(() => {

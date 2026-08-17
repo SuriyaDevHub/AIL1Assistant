@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { IncidentTimelineEntry, getIncidentTimeline } from "../api/client";
+import { getIncidentTimeline } from "../api/client";
 
 const TERMINAL_GOOD = new Set(["CLOSED"]);
 const TERMINAL_CRITICAL = new Set(["MANUAL_FALLBACK", "BLOCKED_BY_GUARDRAIL", "UNPARSEABLE", "PLATFORM_UNAVAILABLE"]);
 const AWAITING = new Set(["AWAITING_REVIEW", "SUBMITTED"]);
 const TERMINAL = new Set([...TERMINAL_GOOD, ...TERMINAL_CRITICAL]);
 
-const STAGE_LABELS: Record<string, string> = {
+const STAGE_LABELS = {
   INGESTED: "Ingested",
   SCREENED: "Screened",
   PARSED: "Parsed",
@@ -24,11 +24,11 @@ const STAGE_LABELS: Record<string, string> = {
   MANUAL_FALLBACK: "Manual fallback",
 };
 
-function stageLabel(status: string): string {
+function stageLabel(status) {
   return STAGE_LABELS[status] ?? status;
 }
 
-function stageClass(status: string, isLast: boolean): string {
+function stageClass(status, isLast) {
   if (!isLast) return "stage stage-done";
   if (TERMINAL_GOOD.has(status)) return "stage stage-good";
   if (TERMINAL_CRITICAL.has(status)) return "stage stage-critical";
@@ -36,7 +36,7 @@ function stageClass(status: string, isLast: boolean): string {
   return "stage stage-running";
 }
 
-function formatDuration(fromMs: number, toMs: number): string {
+function formatDuration(fromMs, toMs) {
   const seconds = Math.max(0, Math.round((toMs - fromMs) / 1000));
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
@@ -52,8 +52,8 @@ function formatDuration(fromMs: number, toMs: number): string {
 // trailing "running" marker after its last known stage, same as Jenkins
 // shows executed stages plus a running indicator rather than hypothetical
 // future ones.
-export default function PipelineView({ incidentId, isTerminal }: { incidentId: string; isTerminal: boolean }) {
-  const [entries, setEntries] = useState<IncidentTimelineEntry[] | null>(null);
+export default function PipelineView({ incidentId, isTerminal }) {
+  const [entries, setEntries] = useState(null);
 
   useEffect(() => {
     getIncidentTimeline(incidentId)
