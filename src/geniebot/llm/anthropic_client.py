@@ -84,6 +84,21 @@ class AnthropicLLMClient(LLMClient):
             raise LLMPlatformError(f"connection error: {exc}") from exc
         except anthropic.APIStatusError as exc:
             raise LLMPlatformError(f"API error {exc.status_code}: {exc.message}") from exc
+        except Exception as exc:
+            # Defensive catch-all (matches internal_platform_client.py's own
+            # equivalent) - not every real failure is one of the three typed
+            # exceptions above. A missing/invalid ANTHROPIC_API_KEY, for one,
+            # raises a bare TypeError from the SDK's own header validation,
+            # before any request is even sent - confirmed live. Without this,
+            # that exception isn't an LLMPlatformError, so it never reaches
+            # pipeline.py's fail-closed handling and just crashes
+            # process_incident_from_log outright, leaving the incident stuck
+            # mid-pipeline; the worker's retry then re-runs from the top and
+            # hits an illegal SCREENED->SCREENED transition instead of the
+            # original error, retrying that forever. Wrapping here routes it
+            # to PLATFORM_UNAVAILABLE -> MANUAL_FALLBACK correctly instead,
+            # same as every other genuine platform failure.
+            raise LLMPlatformError(f"unexpected Anthropic client error: {exc}") from exc
 
         latency_ms = (time.perf_counter() - start) * 1000
 
